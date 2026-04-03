@@ -20,14 +20,11 @@ already been classified, risk‑assessed, and assigned a proposed resolution.
 
 Your job is to flag any **regulatory or policy compliance concerns**.
 
-Check the case against the following regulations (non‑exhaustive):
-- FCRA (Fair Credit Reporting Act)
-- FDCPA (Fair Debt Collection Practices Act)
-- TILA (Truth in Lending Act)
-- ECOA (Equal Credit Opportunity Act)
-- RESPA (Real Estate Settlement Procedures Act)
-- UDAAP (Unfair, Deceptive, or Abusive Acts or Practices)
-- Regulation E (Electronic Fund Transfers)
+Ground your review in the **company policy candidates** and compliance guidance
+provided in the user message. You may consider well-known consumer-protection
+themes (non-exhaustive examples: fair credit reporting, debt collection
+communications, disclosures/notice adequacy, unfair/deceptive/abusive acts),
+but do not invent company-specific rules not present in the retrieved guidance.
 
 Return a JSON object:
 {
@@ -45,17 +42,28 @@ def run_compliance_check(
     classification: ClassificationResult,
     risk: RiskAssessment,
     resolution: ResolutionRecommendation,
+    company_context: dict | None = None,
     model_name: str = "gpt-4o",
     temperature: float = 0.0,
 ) -> dict:
     """Run the compliance check and return flags."""
     logger.info("Compliance agent running")
 
+    policy_snippet = ""
+    if company_context:
+        policy_candidates = company_context.get("policy_candidates", [])
+        if policy_candidates:
+            policy_snippet = (
+                "Company policy candidates relevant to compliance review:\n"
+                f"{policy_candidates}\n"
+            )
+
     user_message = (
         f"Narrative: {narrative}\n"
         f"Classification: {classification.model_dump_json()}\n"
         f"Risk Assessment: {risk.model_dump_json()}\n"
         f"Proposed Resolution: {resolution.model_dump_json()}\n"
+        f"{policy_snippet}"
     )
 
     prompt = ChatPromptTemplate.from_messages(

@@ -1,6 +1,6 @@
 # AI agent for complaint classification
 
-FastAPI service that runs a **LangGraph** workflow over consumer complaints: intake, **RAG‑assisted** classification and risk scoring, resolution suggestions, compliance check, human‑style review gate, and routing. Vector retrieval uses **PostgreSQL + pgvector**; chat calls use the **OpenAI** API.
+FastAPI service that runs a **LangGraph** workflow over consumer complaints as a **company-aware complaint operating system**. The pipeline includes intake, a runtime **company knowledge layer** (taxonomy/severity/policy/routing/control candidates), classification mapping/validation, risk scoring, root-cause inference, resolution planning, compliance review, quality gate, and routing. Vector retrieval uses **PostgreSQL + pgvector**; chat calls use the **OpenAI** API.
 
 ## Prerequisites
 
@@ -99,11 +99,15 @@ On startup, the app ensures the **pgvector** extension exists and creates SQLAlc
 curl -s -X POST "http://localhost:8000/api/v1/complaints" \
   -H "Content-Type: application/json" \
   -d '{
+    "company_id": "mock_bank",
     "consumer_narrative": "I was charged twice for the same credit card payment and the bank will not reverse the duplicate fee.",
     "product": "Credit card",
     "company": "Example Bank",
     "state": "CA",
-    "channel": "web"
+    "channel": "web",
+    "external_product_category": "credit_card",
+    "external_issue_type": "billing_disputes",
+    "requested_resolution": "Refund the duplicate fee"
   }' | python3 -m json.tool
 ```
 
@@ -119,13 +123,21 @@ Other routes:
 | `main.py` | FastAPI app and lifespan (logging + DB init) |
 | `app/api/routes.py` | HTTP routes |
 | `app/orchestrator/workflow.py` | LangGraph pipeline |
-| `app/agents/` | LLM agents (classification, risk, resolution, …) |
+| `app/agents/` | LLM agents (intake, classification, risk, **root_cause**, resolution, compliance, review, routing) |
+| `app/knowledge/` | Company knowledge layer (taxonomy/policy/routing/severity/control candidates) |
 | `app/prompts/` | Markdown prompts for agents |
 | `app/retrieval/` | Embeddings, pgvector indexes, CSV ingest |
 | `app/db/` | SQLAlchemy models and session |
 | `app/schemas/` | Pydantic request/response models |
 | `docker-compose.yml` | Local Postgres + pgvector |
 | `requirements.txt` | Python dependencies |
+
+Additional artifacts:
+| Path | Purpose |
+|------|---------|
+| `testing.ipynb` | Single-row end-to-end smoke test using a row from `complaint_data/` |
+| `repository_architecture_detailed.pdf` | Detailed architecture + function/dependency documentation |
+| `repository_architecture.pdf` | Earlier architecture summary |
 
 ## Evaluations (optional)
 
@@ -137,6 +149,21 @@ python -m app.evals.run_evals
 
 (Adjust the script if your dataset filenames differ.)
 
+## Smoke test (one-row, local)
+
+The repo includes `testing.ipynb`, which:
+
+1. Loads exactly one row from `complaint_data/split_file_0.csv`.
+2. Builds a `CaseCreate` payload (including `company_id` and external label fields).
+3. If `OPENAI_API_KEY` is set, runs the full `process_complaint()` pipeline and prints:
+   - `classification`
+   - `risk_assessment`
+   - `root_cause_hypothesis`
+   - `proposed_resolution`
+   - `compliance_flags`
+
+Run it from the project root with your preferred notebook runner (Cursor/Jupyter).
+
 ## Troubleshooting
 
 - **Database connection errors** — Ensure Docker Compose is up and `DATABASE_URL` matches credentials and database name.
@@ -144,6 +171,7 @@ python -m app.evals.run_evals
 - **OpenAI errors** — Confirm `OPENAI_API_KEY` and billing/quotas; agents use the OpenAI chat API.
 - **Embedding dimension mismatch** — Drop and recreate the database (or tables) after changing `EMBEDDING_PROVIDER` / model so dimensions stay consistent.
 - **Slow first request** — With Hugging Face embeddings, the model loads on the first pipeline run that needs retrieval.
+- **Notebook import errors** — `testing.ipynb` uses `pandas`. If your notebook kernel does not include it, install `pandas` in the same environment as the repo's `.venv`.
 
 ## License
 

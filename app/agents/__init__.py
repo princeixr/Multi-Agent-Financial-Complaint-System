@@ -5,6 +5,7 @@ from .resolution import run_resolution
 from .review import run_review
 from .risk import run_risk_assessment
 from .routing import run_routing
+from .root_cause import run_root_cause_hypothesis
 
 __all__ = [
     "run_classification",
@@ -14,4 +15,5 @@ __all__ = [
     "run_review",
     "run_risk_assessment",
     "run_routing",
+    "run_root_cause_hypothesis",
 ]

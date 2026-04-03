@@ -28,6 +28,8 @@ def run_resolution(
     classification: ClassificationResult,
     risk: RiskAssessment,
     resolution_index: ResolutionIndex | None = None,
+    root_cause_hypothesis: object | None = None,
+    company_context: dict | None = None,
     model_name: str = "gpt-4o",
     temperature: float = 0.0,
 ) -> ResolutionRecommendation:
@@ -42,12 +44,29 @@ def run_resolution(
 
     system_prompt = _load_prompt()
 
+    policy_snippet = ""
+    if company_context:
+        policy_candidates = company_context.get("policy_candidates", [])
+        routing_candidates = company_context.get("routing_candidates", {})
+        policy_snippet = (
+            "Company policy candidates relevant to the resolution:\n"
+            f"{policy_candidates}\n\n"
+            "Company routing/ownership candidates (may influence remediation steps):\n"
+            f"{routing_candidates}\n"
+        )
+
     user_message = (
         f"Narrative: {narrative}\n"
         f"Classification: {classification.model_dump_json()}\n"
         f"Risk Assessment: {risk.model_dump_json()}\n"
         f"Similar resolutions: {similar_resolutions or 'None available'}\n"
+        f"{policy_snippet}\n"
     )
+
+    if root_cause_hypothesis is not None:
+        user_message += (
+            f"Root-cause hypothesis (grounding context): {root_cause_hypothesis}\n"
+        )
 
     prompt = ChatPromptTemplate.from_messages(
         [("system", system_prompt), ("human", "{input}")]

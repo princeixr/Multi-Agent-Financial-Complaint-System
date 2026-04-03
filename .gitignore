@@ -8,3 +8,17 @@ __pycache__/
 .env
 *.log
 .DS_Store
+
+/complaint_data/
+/complaints.csv
+
+# Generated notebooks/outputs
+*.ipynb_checkpoints/
+
+# Architecture PDFs & generated docs
+/repository_architecture.pdf
+/repository_architecture_detailed.pdf
+
+# Local CSV/report artifacts (if you generate more)
+*.csv
+!complaints 2.csv   # only if you really want to track a specific small sample

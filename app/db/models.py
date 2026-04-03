@@ -58,6 +58,19 @@ class ComplaintCase(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # ── Company-aware operational fields (stored as JSON/text) ─────────
+    external_schema_json = Column(Text)
+    operational_mapping_json = Column(Text)
+    evidence_trace_json = Column(Text)
+    severity_class = Column(String(40))
+    team_assignment = Column(String(120))
+    sla_class = Column(String(40))
+    root_cause_hypothesis_json = Column(Text)
+
+    compliance_flags_json = Column(Text)
+    review_notes = Column(Text)
+    routed_to = Column(String(120))
+
     # Relationships
     classification = relationship(
         "ClassificationRecord", back_populates="case", uselist=False

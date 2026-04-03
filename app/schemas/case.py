@@ -38,6 +38,10 @@ class Channel(str, Enum):
 class CaseCreate(BaseModel):
     """Payload accepted from the API to open a new case."""
 
+    company_id: Optional[str] = Field(
+        None, description="Optional company identifier for company-specific routing/policy"
+    )
+
     consumer_narrative: str = Field(
         ..., min_length=10, description="Free‑text complaint narrative"
     )
@@ -48,6 +52,19 @@ class CaseCreate(BaseModel):
     zip_code: Optional[str] = Field(None, max_length=5)
     channel: Channel = Channel.WEB
     submitted_at: Optional[datetime] = None
+
+    # Optional external labels (e.g., CFPB-provided fields or internal intake
+    # classifications). These allow mapping/validation during the company-aware
+    # classification step.
+    external_product_category: Optional[str] = Field(
+        None, description="Optional externally provided product category"
+    )
+    external_issue_type: Optional[str] = Field(
+        None, description="Optional externally provided issue type"
+    )
+    requested_resolution: Optional[str] = Field(
+        None, description="Optional externally requested resolution"
+    )
 
 
 class CaseRead(BaseModel):
@@ -73,6 +90,15 @@ class CaseRead(BaseModel):
     compliance_flags: Optional[list[str]] = None
     review_notes: Optional[str] = None
     routed_to: Optional[str] = None
+
+    # New company-aware fields (stored as JSON/dicts for flexibility).
+    external_schema: Optional[dict] = None
+    operational_mapping: Optional[dict] = None
+    evidence_trace: Optional[dict] = None
+    severity_class: Optional[str] = None
+    team_assignment: Optional[str] = None
+    sla_class: Optional[str] = None
+    root_cause_hypothesis: Optional[dict] = None
 
     class Config:
         from_attributes = True

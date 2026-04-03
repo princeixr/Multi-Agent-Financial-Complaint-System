@@ -46,5 +46,11 @@ def run_intake(payload: CaseCreate) -> CaseRead:
         status=CaseStatus.INTAKE_COMPLETE,
     )
 
+    case.external_schema = {
+        "external_product_category": payload.external_product_category,
+        "external_issue_type": payload.external_issue_type,
+        "requested_resolution": payload.requested_resolution,
+    }
+
     logger.info("Intake complete – case %s", case.id)
     return case

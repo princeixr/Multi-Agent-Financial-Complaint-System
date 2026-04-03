@@ -31,7 +31,9 @@ def run_routing(
     case: CaseRead,
     classification: ClassificationResult,
     risk: RiskAssessment,
+    root_cause_hypothesis: object | None = None,
     review_decision: str = "approve",
+    company_context: dict | None = None,
 ) -> str:
     """Determine the destination team for the case.
 
@@ -43,14 +45,29 @@ def run_routing(
     """
     logger.info("Routing agent running for case %s", case.id)
 
+    routing_candidates = company_context.get("routing_candidates", {}) if company_context else {}
+    team_by_product = routing_candidates.get("team_by_product_category", _PRODUCT_TO_TEAM)
+    executive_team = routing_candidates.get("executive_team", "executive_complaints_team")
+    management_team = routing_candidates.get(
+        "management_escalation_team", "management_escalation_team"
+    )
+
     if review_decision == "escalate":
-        destination = "management_escalation_team"
+        destination = management_team
     elif risk.risk_level == RiskLevel.CRITICAL:
-        destination = "executive_complaints_team"
+        destination = executive_team
     else:
-        destination = _PRODUCT_TO_TEAM.get(
-            classification.product_category, "general_complaints_team"
+        key_str = (
+            classification.product_category.value
+            if hasattr(classification.product_category, "value")
+            else classification.product_category
         )
+        destination = team_by_product.get(key_str)
+        if destination is None:
+            # Fallback for legacy/default mapping where keys are enums.
+            destination = team_by_product.get(classification.product_category)  # type: ignore[arg-type]
+        if destination is None:
+            destination = "general_complaints_team"
 
     logger.info("Case %s routed to → %s", case.id, destination)
     return destination

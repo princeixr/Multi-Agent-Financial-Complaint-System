@@ -26,6 +26,7 @@ def run_risk_assessment(
     narrative: str,
     classification: ClassificationResult,
     complaint_index: ComplaintIndex | None = None,
+    company_context: dict | None = None,
     model_name: str = "gpt-4o",
     temperature: float = 0.0,
 ) -> RiskAssessment:
@@ -40,10 +41,23 @@ def run_risk_assessment(
 
     system_prompt = _load_prompt()
 
+    severity_snippet = ""
+    if company_context:
+        severity_candidates = company_context.get("severity_candidates", [])
+        policy_snippets = company_context.get("policy_candidates", [])
+        if severity_candidates or policy_snippets:
+            severity_snippet = (
+                "Company severity rubric candidates:\n"
+                f"{severity_candidates}\n"
+                "Company policy candidates relevant to this case:\n"
+                f"{policy_snippets}\n"
+            )
+
     user_message = (
         f"Narrative: {narrative}\n"
         f"Classification: {classification.model_dump_json()}\n"
         f"Similar complaints context: {similar_context or 'None available'}\n"
+        f"{severity_snippet}"
     )
 
     prompt = ChatPromptTemplate.from_messages(

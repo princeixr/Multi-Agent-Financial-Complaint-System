@@ -8,8 +8,10 @@ from typing_extensions import TypedDict
 
 from app.schemas.case import CaseRead
 from app.schemas.classification import ClassificationResult
+from app.schemas.evidence import EvidenceTrace
 from app.schemas.resolution import ResolutionRecommendation
 from app.schemas.risk import RiskAssessment
+from app.schemas.root_cause import RootCauseHypothesis
 
 
 class WorkflowState(TypedDict, total=False):
@@ -21,15 +23,19 @@ class WorkflowState(TypedDict, total=False):
 
     # ── Input ────────────────────────────────────────────────────────────
     raw_payload: dict  # Original API payload
+    company_id: str
 
     # ── Intake ───────────────────────────────────────────────────────────
     case: CaseRead
 
     # ── Classification ───────────────────────────────────────────────────
     classification: ClassificationResult
+    operational_mapping: dict  # company validation + mapping result
+    evidence_trace: EvidenceTrace
 
     # ── Risk ─────────────────────────────────────────────────────────────
     risk_assessment: RiskAssessment
+    company_context: dict  # retrieved company knowledge slices
 
     # ── Resolution ───────────────────────────────────────────────────────
     resolution: ResolutionRecommendation
@@ -42,6 +48,9 @@ class WorkflowState(TypedDict, total=False):
 
     # ── Routing ──────────────────────────────────────────────────────────
     routed_to: str
+
+    # ── Root cause ────────────────────────────────────────────────────
+    root_cause_hypothesis: RootCauseHypothesis
 
     # ── Meta ─────────────────────────────────────────────────────────────
     error: Optional[str]

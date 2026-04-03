@@ -74,7 +74,7 @@ MIN_NARRATIVE_LENGTH = 30
 BATCH_SIZE = 500
 
 # Default stratified sample size (good coverage vs. cost tradeoff)
-DEFAULT_SAMPLE_SIZE = 50_000
+DEFAULT_SAMPLE_SIZE = 50000
 
 
 # ═════════════════════════════════════════════════════════════════════════════
