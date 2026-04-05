@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 from app.agents.classification import run_classification
-from app.agents.llm_factory import default_model_name
 from app.schemas.classification import ClassificationResult
 
 logger = logging.getLogger(__name__)

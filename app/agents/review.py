@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from app.agents.llm_factory import create_llm, default_model_name
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from langchain_core.prompts import ChatPromptTemplate
 

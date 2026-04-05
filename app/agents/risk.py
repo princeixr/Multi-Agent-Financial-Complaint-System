@@ -7,7 +7,7 @@ from pathlib import Path
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.agents.llm_factory import create_llm, default_model_name
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from app.retrieval.complaint_index import ComplaintIndex
 from app.schemas.classification import ClassificationResult
