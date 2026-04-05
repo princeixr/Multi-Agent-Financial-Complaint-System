@@ -8,12 +8,13 @@ the graph to the next specialist node.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import Command
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
@@ -30,6 +31,7 @@ _VALID_AGENTS = frozenset(
 )
 
 DEFAULT_MAX_STEPS = 15
+MAX_AGENT_INVOCATIONS = 3
 
 
 # ── Supervisor decision schema ──────────────────────────────────────────────
@@ -129,6 +131,36 @@ def _build_state_summary(state: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+# ── Safe fallback ───────────────────────────────────────────────────────────
+
+def _fallback_command(
+    state: dict[str, Any],
+    error: Exception,
+    step_count: int,
+) -> Command:
+    """Return a safe fallback Command when supervisor parsing/validation fails."""
+    completed = state.get("completed_steps", [])
+    fallback_agent = "route" if "route" not in completed else "__end__"
+
+    logger.error(
+        "Supervisor failed to parse LLM response (%s: %s); falling back to %s",
+        type(error).__name__,
+        str(error)[:300],
+        fallback_agent,
+    )
+
+    update = {
+        "step_count": step_count + 1,
+        "supervisor_reasoning": f"Fallback: LLM response parsing failed ({type(error).__name__})",
+        "supervisor_instructions": "",
+    }
+
+    if fallback_agent == "__end__":
+        return Command(goto="__end__", update=update)
+
+    return Command(goto=fallback_agent, update=update)
+
+
 # ── Supervisor runner ───────────────────────────────────────────────────────
 
 def run_supervisor(state: dict[str, Any]) -> Command:
@@ -153,7 +185,14 @@ def run_supervisor(state: dict[str, Any]) -> Command:
                     "supervisor_instructions": "",
                 },
             )
-        return Command(goto="__end__")
+        return Command(
+            goto="__end__",
+            update={
+                "step_count": step_count + 1,
+                "supervisor_reasoning": "Max steps reached, all done.",
+                "supervisor_instructions": "",
+            },
+        )
 
     # Build prompt
     system_prompt = _PROMPT_PATH.read_text()
@@ -167,8 +206,12 @@ def run_supervisor(state: dict[str, Any]) -> Command:
     chain = prompt | llm
 
     response = chain.invoke({"state_summary": state_summary})
-    result = parse_llm_json(getattr(response, "content", None))
-    decision = SupervisorDecision(**result)
+
+    try:
+        result = parse_llm_json(getattr(response, "content", None))
+        decision = SupervisorDecision(**result)
+    except (ValueError, TypeError, KeyError, ValidationError) as exc:
+        return _fallback_command(state, exc, step_count)
 
     logger.info(
         "Supervisor decision: next=%s, reasoning=%s",
@@ -178,12 +221,40 @@ def run_supervisor(state: dict[str, Any]) -> Command:
 
     # Handle FINISH
     if decision.next_agent == "FINISH":
-        return Command(goto="__end__")
+        return Command(
+            goto="__end__",
+            update={
+                "step_count": step_count + 1,
+                "supervisor_reasoning": decision.reasoning,
+                "supervisor_instructions": decision.instructions,
+            },
+        )
 
     # Validate the decision
     if decision.next_agent not in _VALID_AGENTS:
         logger.error("Supervisor returned invalid agent: %s, defaulting to route", decision.next_agent)
         decision.next_agent = "route"
+
+    # Enforce max invocations per agent (prevent looping)
+    agent_counts = Counter(completed_steps)
+    if agent_counts[decision.next_agent] >= MAX_AGENT_INVOCATIONS:
+        logger.warning(
+            "Agent %s already invoked %d times (max %d), forcing route/FINISH",
+            decision.next_agent,
+            agent_counts[decision.next_agent],
+            MAX_AGENT_INVOCATIONS,
+        )
+        if "route" not in completed_steps:
+            decision.next_agent = "route"
+        else:
+            return Command(
+                goto="__end__",
+                update={
+                    "step_count": step_count + 1,
+                    "supervisor_reasoning": f"Agent {decision.next_agent} hit max invocations, ending workflow.",
+                    "supervisor_instructions": "",
+                },
+            )
 
     return Command(
         goto=decision.next_agent,

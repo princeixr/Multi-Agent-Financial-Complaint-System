@@ -7,14 +7,14 @@ import re
 from datetime import datetime
 
 from app.schemas.case import CaseCreate, CaseRead, CaseStatus
+from app.utils.pii import redact_pii
 
 logger = logging.getLogger(__name__)
 
 
 def _normalise_text(text: str) -> str:
-    """Lower‑case, collapse whitespace, strip PII‑like patterns."""
-    text = re.sub(r"\b\d{3}[-.]?\d{2}[-.]?\d{4}\b", "[SSN_REDACTED]", text)
-    text = re.sub(r"\b\d{16}\b", "[CARD_REDACTED]", text)
+    """Redact PII, lower-case, and collapse whitespace."""
+    text = redact_pii(text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 

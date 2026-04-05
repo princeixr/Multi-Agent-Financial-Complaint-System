@@ -38,7 +38,7 @@ OUTPUT_CSV = os.getenv(
     "TEST_PIPELINE_OUTPUT_CSV",
     "testing_sample_pipeline_output.csv",
 )
-SAMPLE_COUNT = max(1, int(os.getenv("TEST_SAMPLE_COUNT", "10")))
+SAMPLE_COUNT = max(1, int(os.getenv("TEST_SAMPLE_COUNT", "5")))
 
 
 def get_first_existing(df: pd.DataFrame, col_candidates: list[str]) -> str | None:
@@ -253,10 +253,11 @@ def main() -> None:
             "No rows in the CSV have a narrative with at least 10 characters."
         )
 
-    sample_df = df.loc[valid_mask].head(SAMPLE_COUNT)
-    n_available = int(valid_mask.sum())
-    n_run = len(sample_df)
-    print(f"\nValid rows in file: {n_available}; running first {n_run} (SAMPLE_COUNT={SAMPLE_COUNT}).")
+    valid_df = df.loc[valid_mask]
+    n_available = len(valid_df)
+    n_run = min(SAMPLE_COUNT, n_available)
+    sample_df = valid_df.sample(n=n_run)
+    print(f"\nValid rows in file: {n_available}; running {n_run} random sample(s) (SAMPLE_COUNT={SAMPLE_COUNT}).")
     if n_run < SAMPLE_COUNT:
         print(f"Note: fewer than {SAMPLE_COUNT} valid rows; only {n_run} executed.")
 
