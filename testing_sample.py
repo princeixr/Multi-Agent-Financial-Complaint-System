@@ -32,7 +32,7 @@ except ModuleNotFoundError as e:
 
 from app.orchestrator.workflow import process_complaint
 
-CSV_PATH = os.getenv("TEST_CSV_PATH", "complaint_data/split_file_0.csv")
+CSV_PATH = os.getenv("TEST_CSV_PATH", "complaints.csv")
 DEFAULT_COMPANY_ID = os.getenv("COMPANY_ID", "mock_bank")
 OUTPUT_CSV = os.getenv(
     "TEST_PIPELINE_OUTPUT_CSV",
@@ -179,8 +179,11 @@ def main() -> None:
     if setup_tracing:
         setup_tracing()
 
-    openai_key = os.getenv("OPENAI_API_KEY")
-    print("OPENAI_API_KEY set:", bool(openai_key))
+    llm_provider = os.getenv("LLM_PROVIDER", "openai").lower()
+    api_key_env = "DEEPSEEK_API_KEY" if llm_provider == "deepseek" else "OPENAI_API_KEY"
+    api_key = os.getenv(api_key_env)
+    print(f"LLM_PROVIDER: {llm_provider}")
+    print(f"{api_key_env} set:", bool(api_key))
     print("CSV_PATH:", CSV_PATH)
     print("DEFAULT_COMPANY_ID:", DEFAULT_COMPANY_ID)
     print("SAMPLE_COUNT:", SAMPLE_COUNT)
@@ -257,9 +260,9 @@ def main() -> None:
     if n_run < SAMPLE_COUNT:
         print(f"Note: fewer than {SAMPLE_COUNT} valid rows; only {n_run} executed.")
 
-    if not openai_key:
+    if not api_key:
         print(
-            "\nOPENAI_API_KEY is not set; skipping the LLM-powered pipeline run."
+            f"\n{api_key_env} is not set; skipping the LLM-powered pipeline run."
         )
         return
 

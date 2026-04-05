@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from app.retrieval.resolution_index import ResolutionIndex
 from app.schemas.classification import ClassificationResult
@@ -30,7 +30,7 @@ def run_resolution(
     resolution_index: ResolutionIndex | None = None,
     root_cause_hypothesis: object | None = None,
     company_context: dict | None = None,
-    model_name: str = "gpt-4o",
+    model_name: str | None = None,
     temperature: float = 0.0,
 ) -> ResolutionRecommendation:
     """Propose a resolution for the complaint."""
@@ -72,7 +72,7 @@ def run_resolution(
         [("system", system_prompt), ("human", "{input}")]
     )
 
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+    llm = create_llm(model_name=model_name, temperature=temperature)
     chain = prompt | llm
 
     response = chain.invoke({"input": user_message})

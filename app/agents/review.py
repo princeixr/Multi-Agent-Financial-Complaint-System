@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def run_review(
     risk_json: str,
     resolution_json: str,
     compliance_json: str,
-    model_name: str = "gpt-4o",
+    model_name: str | None = None,
     temperature: float = 0.0,
 ) -> dict:
     """Run the QA review and return a decision."""
@@ -55,7 +55,7 @@ def run_review(
         [("system", _SYSTEM_PROMPT), ("human", "{input}")]
     )
 
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+    llm = create_llm(model_name=model_name, temperature=temperature)
     chain = prompt | llm
 
     response = chain.invoke({"input": user_message})

@@ -73,7 +73,7 @@ def setup_logging(level: str | None = None) -> None:
     root.addHandler(handler)
 
     # Silence noisy third‑party loggers
-    for noisy in ("httpcore", "httpx", "openai", "urllib3"):
+    for noisy in ("httpcore", "httpx", "openai", "deepseek", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     logging.info("Logging initialised at level %s", log_level)

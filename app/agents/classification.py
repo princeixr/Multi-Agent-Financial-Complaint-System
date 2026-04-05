@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from app.retrieval.complaint_index import ComplaintIndex
 from app.schemas.classification import ClassificationResult
@@ -29,7 +29,7 @@ def run_classification(
     state: str | None = None,
     complaint_index: ComplaintIndex | None = None,
     company_context: dict | None = None,
-    model_name: str = "gpt-4o",
+    model_name: str | None = None,
     temperature: float = 0.0,
 ) -> ClassificationResult:
     """Classify the complaint and return a structured result.
@@ -87,7 +87,7 @@ def run_classification(
         [("system", system_prompt), ("human", "{input}")]
     )
 
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+    llm = create_llm(model_name=model_name, temperature=temperature)
     chain = prompt | llm
 
     response = chain.invoke({"input": user_message})

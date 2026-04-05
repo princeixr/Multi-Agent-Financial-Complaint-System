@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from app.schemas.classification import ClassificationResult
 from app.schemas.resolution import ResolutionRecommendation
@@ -43,7 +43,7 @@ def run_compliance_check(
     risk: RiskAssessment,
     resolution: ResolutionRecommendation,
     company_context: dict | None = None,
-    model_name: str = "gpt-4o",
+    model_name: str | None = None,
     temperature: float = 0.0,
 ) -> dict:
     """Run the compliance check and return flags."""
@@ -70,7 +70,7 @@ def run_compliance_check(
         [("system", _SYSTEM_PROMPT), ("human", "{input}")]
     )
 
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+    llm = create_llm(model_name=model_name, temperature=temperature)
     chain = prompt | llm
 
     response = chain.invoke({"input": user_message})

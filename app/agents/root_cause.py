@@ -4,9 +4,9 @@ import json
 import logging
 from pathlib import Path
 
+from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 from app.schemas.classification import ClassificationResult
 from app.schemas.evidence import EvidenceTrace
@@ -47,7 +47,7 @@ def run_root_cause_hypothesis(
     risk: RiskAssessment,
     company_root_cause_controls: list[dict],
     evidence_trace: EvidenceTrace | None = None,
-    model_name: str = "gpt-4o",
+    model_name: str | None = None,
     temperature: float = 0.0,
 ) -> RootCauseHypothesis:
     logger.info("Root-cause agent running")
@@ -69,7 +69,7 @@ def run_root_cause_hypothesis(
     prompt = ChatPromptTemplate.from_messages(
         [("system", _SYSTEM_PROMPT), ("human", "{input}")]
     )
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+    llm = create_llm(model_name=model_name, temperature=temperature)
     chain = prompt | llm
 
     response = chain.invoke({"input": user_message})
@@ -82,4 +82,3 @@ def run_root_cause_hypothesis(
         result.confidence,
     )
     return result
-

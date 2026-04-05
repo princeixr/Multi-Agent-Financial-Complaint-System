@@ -1,12 +1,12 @@
 # AI agent for complaint classification
 
-FastAPI service that runs a **LangGraph** workflow over consumer complaints as a **company-aware complaint operating system**. The pipeline includes intake, a runtime **company knowledge layer** (taxonomy/severity/policy/routing/control candidates), classification mapping/validation, risk scoring, root-cause inference, resolution planning, compliance review, quality gate, and routing. Vector retrieval uses **PostgreSQL + pgvector**; chat calls use the **OpenAI** API.
+FastAPI service that runs a **LangGraph** workflow over consumer complaints as a **company-aware complaint operating system**. The pipeline includes intake, a runtime **company knowledge layer** (taxonomy/severity/policy/routing/control candidates), classification mapping/validation, risk scoring, root-cause inference, resolution planning, compliance review, quality gate, and routing. Vector retrieval uses **PostgreSQL + pgvector**; chat calls use the **OpenAI** or **DeepSeek** API.
 
 ## Prerequisites
 
 - **Python 3.11+** (3.11 recommended)
 - **Docker** (optional but recommended) for PostgreSQL with pgvector
-- **OpenAI API key** (`OPENAI_API_KEY`) — used by all LLM agents (default model in code: `gpt-4o`)
+- **LLM API key** — either `OPENAI_API_KEY` or `DEEPSEEK_API_KEY` depending on provider (see below)
 - For **local embeddings** (default): network access on first run to download the Hugging Face model, or set `EMBEDDING_PROVIDER=openai` and use OpenAI embeddings (see below)
 
 ## Quick start
@@ -19,11 +19,21 @@ cd "/path/to/AI Agent for Complaint Classification"
 
 ### 2. Create a virtual environment and install dependencies
 
+**Option A — uv (recommended):**
+
+```bash
+uv sync
+```
+
+**Option B — pip:**
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+> If using **uv**, use `uv run` instead of `python` (e.g. `uv run app/retrieval/ingest`).
 
 ### 3. Configure environment
 
@@ -33,11 +43,14 @@ cp .env.example .env
 
 Edit `.env` and set at least:
 
-- `OPENAI_API_KEY` — required for the pipeline to call the LLM.
+- `LLM_PROVIDER` — `openai` (default) or `deepseek`
+- `OPENAI_API_KEY` — required when `LLM_PROVIDER=openai`
+- `DEEPSEEK_API_KEY` — required when `LLM_PROVIDER=deepseek`
 - `DATABASE_URL` — leave default if you use the bundled Docker Compose Postgres.
 
 Optional:
 
+- `OPENAI_CHAT_MODEL` / `DEEPSEEK_CHAT_MODEL` — override the default model
 - `EMBEDDING_PROVIDER=huggingface` (default) or `openai`
 - `HF_DEVICE=cpu` / `cuda` / `mps` — for local embedding model
 - `LOG_LEVEL`, `SQL_ECHO`
@@ -121,8 +134,10 @@ Other routes:
 | Path | Purpose |
 |------|---------|
 | `main.py` | FastAPI app and lifespan (logging + DB init) |
+| `pyproject.toml` | Project metadata and dependencies (uv / pip) |
 | `app/api/routes.py` | HTTP routes |
 | `app/orchestrator/workflow.py` | LangGraph pipeline |
+| `app/agents/llm_factory.py` | LLM provider factory (OpenAI / DeepSeek) |
 | `app/agents/` | LLM agents (intake, classification, risk, **root_cause**, resolution, compliance, review, routing) |
 | `app/knowledge/` | Company knowledge layer (taxonomy/policy/routing/severity/control candidates) |
 | `app/prompts/` | Markdown prompts for agents |
@@ -130,7 +145,7 @@ Other routes:
 | `app/db/` | SQLAlchemy models and session |
 | `app/schemas/` | Pydantic request/response models |
 | `docker-compose.yml` | Local Postgres + pgvector |
-| `requirements.txt` | Python dependencies |
+| `requirements.txt` | Legacy pip requirements |
 
 Additional artifacts:
 | Path | Purpose |
@@ -155,7 +170,7 @@ The repo includes `testing.ipynb`, which:
 
 1. Loads exactly one row from `complaint_data/split_file_0.csv`.
 2. Builds a `CaseCreate` payload (including `company_id` and external label fields).
-3. If `OPENAI_API_KEY` is set, runs the full `process_complaint()` pipeline and prints:
+3. If an LLM API key is set, runs the full `process_complaint()` pipeline and prints:
    - `classification`
    - `risk_assessment`
    - `root_cause_hypothesis`
@@ -168,10 +183,10 @@ Run it from the project root with your preferred notebook runner (Cursor/Jupyter
 
 - **Database connection errors** — Ensure Docker Compose is up and `DATABASE_URL` matches credentials and database name.
 - **`CREATE EXTENSION vector` fails** — Use an image that includes pgvector (this repo uses `pgvector/pgvector:pg16`).
-- **OpenAI errors** — Confirm `OPENAI_API_KEY` and billing/quotas; agents use the OpenAI chat API.
+- **LLM API errors** — Confirm your API key (`OPENAI_API_KEY` or `DEEPSEEK_API_KEY`) and billing/quotas.
 - **Embedding dimension mismatch** — Drop and recreate the database (or tables) after changing `EMBEDDING_PROVIDER` / model so dimensions stay consistent.
 - **Slow first request** — With Hugging Face embeddings, the model loads on the first pipeline run that needs retrieval.
-- **Notebook import errors** — `testing.ipynb` uses `pandas`. If your notebook kernel does not include it, install `pandas` in the same environment as the repo's `.venv`.
+- **Notebook import errors** — `testing.ipynb` uses `pandas`. Install it in your environment if not already present.
 
 ## License
 

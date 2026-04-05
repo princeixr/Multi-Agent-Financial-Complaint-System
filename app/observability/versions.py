@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from app.agents.llm_factory import default_model_name, get_provider
+
 
 def workflow_version() -> str:
     return os.getenv("WORKFLOW_VERSION", "1.0.0")
@@ -18,4 +20,8 @@ def knowledge_pack_version(company_id: str) -> str:
 
 
 def default_chat_model() -> str:
-    return os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
+    return default_model_name()
+
+
+def llm_provider() -> str:
+    return get_provider()
