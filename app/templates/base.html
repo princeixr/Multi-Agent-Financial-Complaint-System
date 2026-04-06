@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="dark" lang="en">
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -13,40 +13,40 @@
       theme: {
         extend: {
           colors: {
-            "on-error-container": "#ffdad6",
-            "outline": "#8e909c",
-            "secondary-fixed-dim": "#b7c8e1",
-            "tertiary-container": "#002f1e",
-            "surface-container-high": "#222a3d",
-            "secondary-container": "#3a4a5f",
-            "tertiary": "#4edea3",
-            "on-primary": "#002e68",
-            "background": "#0b1326",
-            "on-tertiary-container": "#00a371",
-            "primary-fixed": "#d8e2ff",
-            "inverse-surface": "#dae2fd",
-            "surface": "#0b1326",
-            "surface-container": "#171f33",
-            "error": "#ffb4ab",
-            "secondary": "#b7c8e1",
-            "on-surface-variant": "#c5c6d2",
-            "primary-fixed-dim": "#adc7ff",
-            "surface-tint": "#adc7ff",
-            "surface-container-highest": "#2d3449",
-            "on-secondary-container": "#a9bad3",
-            "surface-container-lowest": "#060e20",
-            "error-container": "#93000a",
-            "on-secondary": "#213145",
-            "surface-bright": "#31394d",
-            "on-primary-container": "#478dff",
-            "outline-variant": "#444650",
-            "on-background": "#dae2fd",
-            "surface-container-low": "#131b2e",
-            "primary": "#adc7ff",
-            "surface-variant": "#2d3449",
-            "primary-container": "#002759",
-            "on-surface": "#dae2fd",
-            "on-error": "#690005"
+            "on-error-container": "rgb(var(--on-error-container) / <alpha-value>)",
+            "outline": "rgb(var(--outline) / <alpha-value>)",
+            "secondary-fixed-dim": "rgb(var(--secondary-fixed-dim) / <alpha-value>)",
+            "tertiary-container": "rgb(var(--tertiary-container) / <alpha-value>)",
+            "surface-container-high": "rgb(var(--surface-container-high) / <alpha-value>)",
+            "secondary-container": "rgb(var(--secondary-container) / <alpha-value>)",
+            "tertiary": "rgb(var(--tertiary) / <alpha-value>)",
+            "on-primary": "rgb(var(--on-primary) / <alpha-value>)",
+            "background": "rgb(var(--background) / <alpha-value>)",
+            "on-tertiary-container": "rgb(var(--on-tertiary-container) / <alpha-value>)",
+            "primary-fixed": "rgb(var(--primary-fixed) / <alpha-value>)",
+            "inverse-surface": "rgb(var(--inverse-surface) / <alpha-value>)",
+            "surface": "rgb(var(--surface) / <alpha-value>)",
+            "surface-container": "rgb(var(--surface-container) / <alpha-value>)",
+            "error": "rgb(var(--error) / <alpha-value>)",
+            "secondary": "rgb(var(--secondary) / <alpha-value>)",
+            "on-surface-variant": "rgb(var(--on-surface-variant) / <alpha-value>)",
+            "primary-fixed-dim": "rgb(var(--primary-fixed-dim) / <alpha-value>)",
+            "surface-tint": "rgb(var(--surface-tint) / <alpha-value>)",
+            "surface-container-highest": "rgb(var(--surface-container-highest) / <alpha-value>)",
+            "on-secondary-container": "rgb(var(--on-secondary-container) / <alpha-value>)",
+            "surface-container-lowest": "rgb(var(--surface-container-lowest) / <alpha-value>)",
+            "error-container": "rgb(var(--error-container) / <alpha-value>)",
+            "on-secondary": "rgb(var(--on-secondary) / <alpha-value>)",
+            "surface-bright": "rgb(var(--surface-bright) / <alpha-value>)",
+            "on-primary-container": "rgb(var(--on-primary-container) / <alpha-value>)",
+            "outline-variant": "rgb(var(--outline-variant) / <alpha-value>)",
+            "on-background": "rgb(var(--on-background) / <alpha-value>)",
+            "surface-container-low": "rgb(var(--surface-container-low) / <alpha-value>)",
+            "primary": "rgb(var(--primary) / <alpha-value>)",
+            "surface-variant": "rgb(var(--surface-variant) / <alpha-value>)",
+            "primary-container": "rgb(var(--primary-container) / <alpha-value>)",
+            "on-surface": "rgb(var(--on-surface) / <alpha-value>)",
+            "on-error": "rgb(var(--on-error) / <alpha-value>)"
           },
           borderRadius: {
             DEFAULT: "0.125rem",
@@ -95,6 +95,7 @@
     <div class="flex-1 px-3 mt-2 space-y-1">
       {% set nav_items = [
         ("dashboard", "/", "dashboard", "Dashboard"),
+        ("lodge", "/complaints/new", "edit_square", "Lodge Complaint"),
         ("trace", "/trace/latest", "account_tree", "Trace"),
         ("analytics", "/analytics", "analytics", "Analytics"),
         ("settings", "/settings", "settings", "Settings"),
@@ -128,7 +129,7 @@
       <h2 class="font-headline font-bold text-on-surface text-sm">Complaint Management</h2>
     </div>
     <div class="flex items-center gap-2">
-      <button onclick="document.documentElement.classList.toggle('dark')"
+      <button onclick="toggleTheme()"
               class="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-all"
               title="Toggle theme">
         <span class="material-symbols-outlined text-xl">dark_mode</span>

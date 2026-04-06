@@ -69,6 +69,14 @@ async def dashboard(request: Request, page: int = 1, limit: int = 15):
     })
 
 
+@router.get("/complaints/new", include_in_schema=False)
+async def lodge_complaint(request: Request):
+    """Complaint intake form for manual submission from the UI."""
+    return templates.TemplateResponse(request, "lodge.html", context={
+        "active_nav": "lodge",
+    })
+
+
 @router.get("/complaints/{case_id}", include_in_schema=False)
 async def complaint_detail(request: Request, case_id: str):
     """Single complaint deep-dive with all agent outputs."""

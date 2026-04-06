@@ -1,7 +1,9 @@
-// Dark/light theme toggle — persists preference in localStorage
+// Theme toggle — default is light, with persisted override
 (function() {
   const saved = localStorage.getItem('theme');
-  if (saved === 'light') {
+  if (saved === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
     document.documentElement.classList.remove('dark');
   }
 })();
