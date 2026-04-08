@@ -1,142 +1,76 @@
 {% extends "base.html" %}
-{% block title %}Lodge Complaint{% endblock %}
+{% block title %}Intake Chat{% endblock %}
 
 {% block content %}
 <div class="mb-8">
   <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Intake Portal</p>
-  <h1 class="text-4xl font-headline font-extrabold tracking-tight">Lodge a Complaint</h1>
+  <h1 class="text-4xl font-headline font-extrabold tracking-tight">Chat to Lodge a Complaint</h1>
   <p class="text-sm text-on-surface-variant mt-1 max-w-3xl">
-    Submit a new consumer complaint directly into the workflow pipeline. Required fields are validated before API submission.
+    Tell us what happened. The Intake agent will ask follow-up questions when needed, then submit once your information is sufficient.
   </p>
 </div>
 
 <div class="grid grid-cols-12 gap-6">
-  <section class="col-span-12 xl:col-span-8 bg-surface-container-low rounded-xl p-6 ghost-border glow-primary">
-    <form id="complaint-form" class="space-y-6" novalidate>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label for="company" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Company</label>
-          <input id="company" name="company" type="text" maxlength="120"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                 placeholder="Acme Financial" />
-        </div>
-        <div>
-          <label for="company_id" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Company ID</label>
-           <input id="company_id" name="company_id" type="text" maxlength="64" value="mock_bank"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-             placeholder="Optional internal identifier" />
-           <p class="mt-1 text-[11px] text-on-surface-variant">Demo environment supports mock_bank.</p>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label for="product" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Product</label>
-          <input id="product" name="product" type="text" maxlength="120"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                 placeholder="Credit card" />
-        </div>
-        <div>
-          <label for="sub_product" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Sub Product</label>
-          <input id="sub_product" name="sub_product" type="text" maxlength="120"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                 placeholder="Rewards card" />
-        </div>
-        <div>
-          <label for="channel" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Channel</label>
-          <select id="channel" name="channel"
-                  class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20">
-            <option value="web" selected>Web</option>
-            <option value="phone">Phone</option>
-            <option value="email">Email</option>
-            <option value="fax">Fax</option>
-            <option value="postal">Postal</option>
-            <option value="referral">Referral</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label for="state" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">State</label>
-          <input id="state" name="state" type="text" maxlength="2"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm uppercase text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                 placeholder="CA" />
-        </div>
-        <div>
-          <label for="zip_code" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">ZIP Code</label>
-          <input id="zip_code" name="zip_code" type="text" maxlength="5" pattern="[0-9]{5}"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                 placeholder="94105" />
-        </div>
-        <div>
-          <label for="submitted_at" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Submitted At</label>
-          <input id="submitted_at" name="submitted_at" type="datetime-local"
-                 class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20" />
-        </div>
-      </div>
-
+  <section class="col-span-12 xl:col-span-8 bg-surface-container-low rounded-xl p-6 ghost-border glow-primary flex flex-col">
+    <div class="flex items-start justify-between gap-4 mb-4">
       <div>
-        <label for="consumer_narrative" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Consumer Narrative <span class="text-error">*</span></label>
-        <textarea id="consumer_narrative" name="consumer_narrative" rows="7" minlength="10" required
-                  class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm leading-relaxed text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  placeholder="Describe the complaint in detail (minimum 10 characters)..."></textarea>
-        <div id="narrative-help" class="mt-2 text-xs text-on-surface-variant">Minimum 10 characters required.</div>
+        <h2 class="font-headline font-bold text-lg mb-1">Intake Chat</h2>
+        <p class="text-sm text-on-surface-variant">
+          Describe the problem. The agent will ask follow-ups, then submit once your info is sufficient.
+        </p>
       </div>
+      <button id="new-session-btn"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-sm hover:bg-surface-container-high transition-colors">
+        <span class="material-symbols-outlined text-lg">restart_alt</span>
+        New session
+      </button>
+    </div>
 
-      <div class="bg-surface-container rounded-xl p-4 border border-outline-variant/20">
-        <h2 class="font-headline font-bold text-sm mb-3">Optional External Labels</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label for="external_product_category" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">External Product Category</label>
-            <input id="external_product_category" name="external_product_category" type="text" maxlength="120"
-                   class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                   placeholder="Optional" />
-          </div>
-          <div>
-            <label for="external_issue_type" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">External Issue Type</label>
-            <input id="external_issue_type" name="external_issue_type" type="text" maxlength="120"
-                   class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                   placeholder="Optional" />
-          </div>
-          <div>
-            <label for="requested_resolution" class="block text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant mb-2">Requested Resolution</label>
-            <input id="requested_resolution" name="requested_resolution" type="text" maxlength="180"
-                   class="w-full rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                   placeholder="Optional" />
-          </div>
-        </div>
+    <div id="chat-messages"
+         class="flex-1 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface px-4 py-4 space-y-4"
+         style="min-height: 420px;">
+    </div>
+
+    <div class="mt-4 flex items-end gap-3">
+      <textarea id="chat-input"
+                rows="2"
+                placeholder="What happened? (e.g., charged twice for the same payment...)"
+                class="flex-1 rounded-xl border border-outline-variant/40 bg-surface px-3 py-2.5 text-sm leading-relaxed text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20"></textarea>
+      <button id="send-btn"
+              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-95 transition-all glow-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled>
+        <span class="material-symbols-outlined text-lg">send</span>
+        Send
+      </button>
+    </div>
+
+    <div class="mt-3 flex items-center justify-between gap-4">
+      <div id="chat-error"
+           class="hidden flex-1 rounded-xl border border-error/30 bg-error-container/70 px-4 py-3 text-sm text-on-error-container">
       </div>
-
-      <div id="form-error" class="hidden rounded-xl border border-error/30 bg-error-container/70 px-4 py-3 text-sm text-on-error-container"></div>
-      <div id="form-success" class="hidden rounded-xl border border-tertiary/30 bg-tertiary-container/70 px-4 py-3 text-sm text-on-tertiary-container"></div>
-
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <a href="/" class="px-4 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-sm hover:bg-surface-container-high transition-colors">Cancel</a>
-        <button id="submit-btn" type="submit"
-                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-95 transition-all glow-primary disabled:opacity-50 disabled:cursor-not-allowed">
-          <span class="material-symbols-outlined text-lg">send</span>
-          Submit Complaint
-        </button>
-      </div>
-    </form>
+      <button id="finalize-btn"
+              class="hidden inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tertiary text-on-tertiary text-sm font-semibold hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <span class="material-symbols-outlined text-lg">verified</span>
+        Submit Complaint
+      </button>
+    </div>
   </section>
 
   <aside class="col-span-12 xl:col-span-4 space-y-6">
     <div class="bg-surface-container-low rounded-xl p-5 ghost-border">
-      <h2 class="font-headline font-bold text-lg mb-3">Submission Notes</h2>
-      <ul class="space-y-2 text-sm text-on-surface-variant">
-        <li>Required: consumer narrative (10+ chars)</li>
-        <li>State should be 2-letter code</li>
-        <li>ZIP code should be 5 digits</li>
-        <li>Channel defaults to web</li>
-      </ul>
+      <h2 class="font-headline font-bold text-lg mb-3">Intake Status</h2>
+      <div id="packet-status" class="text-sm text-on-surface-variant space-y-2">
+        <div>Starting intake session...</div>
+      </div>
     </div>
 
     <div class="bg-surface-container-low rounded-xl p-5 ghost-border">
-      <h2 class="font-headline font-bold text-lg mb-2">API Endpoint</h2>
-      <p class="text-xs text-on-surface-variant mb-3">This form submits directly to:</p>
-      <code class="block text-xs bg-surface-container rounded-lg px-3 py-2 text-primary">POST /api/v1/complaints</code>
+      <h2 class="font-headline font-bold text-lg mb-2">Tips</h2>
+      <ul class="space-y-2 text-sm text-on-surface-variant">
+        <li>Include product + what went wrong.</li>
+        <li>Add date and any amounts if you know them.</li>
+        <li>Mention what you want as a resolution.</li>
+      </ul>
     </div>
   </aside>
 </div>
@@ -145,99 +79,172 @@
 {% block scripts %}
 <script>
   (function() {
-    const form = document.getElementById('complaint-form');
-    const submitBtn = document.getElementById('submit-btn');
-    const errorBox = document.getElementById('form-error');
-    const successBox = document.getElementById('form-success');
+    const messagesEl = document.getElementById('chat-messages');
+    const inputEl = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const errorEl = document.getElementById('chat-error');
+    const finalizeBtn = document.getElementById('finalize-btn');
+    const newSessionBtn = document.getElementById('new-session-btn');
+    const packetStatusEl = document.getElementById('packet-status');
 
-    const hideMessages = () => {
-      errorBox.classList.add('hidden');
-      successBox.classList.add('hidden');
-      errorBox.textContent = '';
-      successBox.textContent = '';
+    let sessionId = null;
+    let lastCompleted = false;
+    let busy = false;
+
+    const setError = (msg) => {
+      if (!msg) {
+        errorEl.classList.add('hidden');
+        errorEl.textContent = '';
+        return;
+      }
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
     };
 
-    const normalizeOptional = (value) => {
-      const trimmed = value.trim();
-      return trimmed.length ? trimmed : null;
+    const setPacketStatus = (packet) => {
+      if (!packet) {
+        packetStatusEl.innerHTML = '<div>Missing packet status.</div>';
+        return;
+      }
+
+      const intent = packet.intent || 'unknown';
+      const suff = packet.information_sufficiency || 'insufficient';
+      const handoff = packet.recommended_handoff || 'supervisor';
+      const missing = packet.missing_fields && packet.missing_fields.length ? packet.missing_fields : [];
+
+      packetStatusEl.innerHTML = `
+        <div><span class="font-semibold">Intent:</span> ${intent}</div>
+        <div><span class="font-semibold">Sufficiency:</span> ${suff}</div>
+        <div><span class="font-semibold">Recommended handoff:</span> ${handoff}</div>
+        <div><span class="font-semibold">Missing fields:</span> ${missing.length ? missing.join(', ') : 'none'}</div>
+      `;
     };
 
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      hideMessages();
+    const appendMessage = (role, text) => {
+      const row = document.createElement('div');
+      row.className = 'flex items-start ' + (role === 'user' ? 'justify-end' : 'justify-start');
 
-      const narrative = document.getElementById('consumer_narrative').value.trim();
-      const state = document.getElementById('state').value.trim().toUpperCase();
-      const zipCode = document.getElementById('zip_code').value.trim();
+      const bubble = document.createElement('div');
+      bubble.className =
+        role === 'user'
+          ? 'max-w-[80%] rounded-xl bg-primary-container text-on-primary-container px-4 py-3 text-sm whitespace-pre-wrap'
+          : 'max-w-[80%] rounded-xl bg-surface-container px-4 py-3 text-sm text-on-surface whitespace-pre-wrap';
 
-      if (narrative.length < 10) {
-        errorBox.textContent = 'Consumer narrative must be at least 10 characters.';
-        errorBox.classList.remove('hidden');
-        return;
+      bubble.textContent = text || '';
+      row.appendChild(bubble);
+      messagesEl.appendChild(row);
+
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    };
+
+    const startSession = async () => {
+      setError(null);
+      finalizeBtn.classList.add('hidden');
+      finalizeBtn.disabled = true;
+      lastCompleted = false;
+      sessionId = null;
+      messagesEl.innerHTML = '';
+      packetStatusEl.innerHTML = '<div>Starting intake session...</div>';
+      sendBtn.disabled = true;
+
+      busy = true;
+      try {
+        const resp = await fetch('/api/v1/intake/session', { method: 'POST' });
+        const data = await resp.json();
+        sessionId = data.session_id;
+        appendMessage('agent', data.agent_message || 'Hello.');
+        setPacketStatus(data.packet || {});
+        sendBtn.disabled = false;
+      } catch (e) {
+        setError(e && e.message ? e.message : 'Failed to start intake session.');
+      } finally {
+        busy = false;
       }
+    };
 
-      if (state && state.length !== 2) {
-        errorBox.textContent = 'State must be exactly 2 letters.';
-        errorBox.classList.remove('hidden');
-        return;
-      }
+    const sendMessage = async () => {
+      const text = (inputEl.value || '').trim();
+      if (!text || !sessionId || busy) return;
 
-      if (zipCode && !/^\d{5}$/.test(zipCode)) {
-        errorBox.textContent = 'ZIP code must be exactly 5 digits.';
-        errorBox.classList.remove('hidden');
-        return;
-      }
+      setError(null);
+      appendMessage('user', text);
+      inputEl.value = '';
+      sendBtn.disabled = true;
+      busy = true;
 
-      const submittedAtRaw = document.getElementById('submitted_at').value;
-      const payload = {
-        company_id: normalizeOptional(document.getElementById('company_id').value),
-        consumer_narrative: narrative,
-        product: normalizeOptional(document.getElementById('product').value),
-        sub_product: normalizeOptional(document.getElementById('sub_product').value),
-        company: normalizeOptional(document.getElementById('company').value),
-        state: state || null,
-        zip_code: zipCode || null,
-        channel: document.getElementById('channel').value,
-        submitted_at: submittedAtRaw ? new Date(submittedAtRaw).toISOString() : null,
-        external_product_category: normalizeOptional(document.getElementById('external_product_category').value),
-        external_issue_type: normalizeOptional(document.getElementById('external_issue_type').value),
-        requested_resolution: normalizeOptional(document.getElementById('requested_resolution').value),
-      };
-
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="material-symbols-outlined text-lg animate-pulse">hourglass_top</span>Submitting...';
+      // small typing indicator
+      appendMessage('agent', '…');
 
       try {
-        const response = await fetch('/api/v1/complaints', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
+        const url =
+          `/api/v1/intake/session/${encodeURIComponent(sessionId)}/message` +
+          `?message=${encodeURIComponent(text)}`;
+        const resp = await fetch(url, { method: 'POST' });
+        const data = await resp.json();
 
-        const responseBody = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const detail = typeof responseBody.detail === 'string'
-            ? responseBody.detail
-            : 'Complaint submission failed. Please check inputs and retry.';
-          throw new Error(detail);
+        // remove the last "…" bubble
+        if (messagesEl.lastElementChild) {
+          // naive: clear last 1 message if it is the typing indicator
+          // (safe for MVP)
+          messagesEl.removeChild(messagesEl.lastElementChild);
         }
 
-        successBox.textContent = `Complaint submitted successfully. Case #${responseBody.id.slice(0, 12)} created.`;
-        successBox.classList.remove('hidden');
+        appendMessage('agent', data.agent_message || '');
+        setPacketStatus(data.packet || {});
+        lastCompleted = !!data.completed;
 
-        setTimeout(() => {
-          window.location.href = `/complaints/${responseBody.id}`;
-        }, 900);
-      } catch (error) {
-        errorBox.textContent = error.message || 'Unexpected error during submission.';
-        errorBox.classList.remove('hidden');
+        if (lastCompleted) {
+          finalizeBtn.classList.remove('hidden');
+          finalizeBtn.disabled = false;
+        } else {
+          finalizeBtn.classList.add('hidden');
+          finalizeBtn.disabled = true;
+        }
+      } catch (e) {
+        setError(e && e.message ? e.message : 'Intake failed. Please try again.');
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span class="material-symbols-outlined text-lg">send</span>Submit Complaint';
+        busy = false;
+        if (sessionId && !lastCompleted) sendBtn.disabled = false;
+      }
+    };
+
+    const finalize = async () => {
+      if (!sessionId || busy) return;
+      setError(null);
+      finalizeBtn.disabled = true;
+      busy = true;
+      try {
+        const resp = await fetch(
+          `/api/v1/intake/session/${encodeURIComponent(sessionId)}/finalize`,
+          { method: 'POST' }
+        );
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(body.detail || 'Finalize failed.');
+        }
+        const caseId = body.id;
+        window.location.href = `/complaints/${caseId}`;
+      } catch (e) {
+        setError(e && e.message ? e.message : 'Submit failed.');
+        finalizeBtn.disabled = false;
+      } finally {
+        busy = false;
+      }
+    };
+
+    newSessionBtn.addEventListener('click', () => startSession());
+    sendBtn.addEventListener('click', sendMessage);
+    finalizeBtn.addEventListener('click', finalize);
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
       }
     });
+
+    // Kick off once the page loads.
+    startSession();
   })();
 </script>
 {% endblock %}

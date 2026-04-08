@@ -16,6 +16,12 @@ from app.db.models import (
 )
 from app.orchestrator.workflow import process_complaint
 from app.schemas.case import CaseCreate, CaseRead
+from app.agents.intake_engine import (
+    finalize_intake_session,
+    get_intake_session,
+    process_intake_message,
+    start_intake_session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +163,92 @@ def _case_read_from_db(db_case: ComplaintCase) -> CaseRead:
     )
 
 
+def _persist_case_and_outputs(case: CaseRead) -> None:
+    """Persist CaseRead and specialist outputs into relational tables."""
+    with get_db() as db:
+        db_case = ComplaintCase(
+            id=case.id,
+            status=case.status.value,
+            consumer_narrative=case.consumer_narrative,
+            product=case.product,
+            sub_product=case.sub_product,
+            company=case.company,
+            state=case.state,
+            zip_code=case.zip_code,
+            channel=case.channel.value,
+            submitted_at=case.submitted_at,
+            routed_to=case.routed_to,
+            team_assignment=case.team_assignment,
+            severity_class=case.severity_class,
+            sla_class=case.sla_class,
+            external_schema_json=_json_or_none(case.external_schema),
+            operational_mapping_json=_json_or_none(case.operational_mapping),
+            evidence_trace_json=_json_or_none(case.evidence_trace),
+            root_cause_hypothesis_json=_json_or_none(case.root_cause_hypothesis),
+            compliance_flags_json=_json_or_none(case.compliance_flags),
+            review_notes=case.review_notes,
+            classification_audit_json=_json_or_none(case.classification_audit),
+        )
+        db.add(db_case)
+
+        # Persist agent outputs into dedicated relational tables.
+        if case.classification:
+            c = case.classification
+            product_category = c.get("product_category")
+            if hasattr(product_category, "value"):
+                product_category = product_category.value
+            issue_type = c.get("issue_type")
+            if hasattr(issue_type, "value"):
+                issue_type = issue_type.value
+            db.add(
+                ClassificationRecord(
+                    case_id=case.id,
+                    product_category=product_category,
+                    issue_type=issue_type,
+                    sub_issue=c.get("sub_issue"),
+                    confidence=c.get("confidence", 0.0),
+                    reasoning=c.get("reasoning"),
+                    review_recommended=bool(c.get("review_recommended", False)),
+                    reason_codes_json=_json_or_none(c.get("reason_codes")),
+                    keywords_json=_json_or_none(c.get("keywords")),
+                )
+            )
+
+        if case.risk_assessment:
+            r = case.risk_assessment
+            risk_level = r.get("risk_level")
+            if hasattr(risk_level, "value"):
+                risk_level = risk_level.value
+            db.add(
+                RiskRecord(
+                    case_id=case.id,
+                    risk_level=risk_level,
+                    risk_score=r.get("risk_score", 0.0),
+                    regulatory_risk=r.get("regulatory_risk", False),
+                    financial_impact_estimate=r.get("financial_impact_estimate"),
+                    escalation_required=r.get("escalation_required", False),
+                    reasoning=r.get("reasoning"),
+                )
+            )
+
+        if case.proposed_resolution:
+            res = case.proposed_resolution
+            recommended_action = res.get("recommended_action")
+            if hasattr(recommended_action, "value"):
+                recommended_action = recommended_action.value
+            db.add(
+                ResolutionRecord(
+                    case_id=case.id,
+                    recommended_action=recommended_action,
+                    description=res.get("description", ""),
+                    estimated_resolution_days=res.get("estimated_resolution_days", 1),
+                    monetary_amount=res.get("monetary_amount"),
+                    confidence=res.get("confidence", 0.0),
+                    reasoning=res.get("reasoning", ""),
+                )
+            )
+
+
 @router.post(
     "/complaints",
     response_model=CaseRead,
@@ -169,92 +261,7 @@ async def create_complaint(payload: CaseCreate) -> CaseRead:
     try:
         final_state = process_complaint(payload.model_dump())
         case: CaseRead = final_state["case"]
-
-        # Persist to database
-        with get_db() as db:
-            db_case = ComplaintCase(
-                id=case.id,
-                status=case.status.value,
-                consumer_narrative=case.consumer_narrative,
-                product=case.product,
-                sub_product=case.sub_product,
-                company=case.company,
-                state=case.state,
-                zip_code=case.zip_code,
-                channel=case.channel.value,
-                submitted_at=case.submitted_at,
-                routed_to=case.routed_to,
-                team_assignment=case.team_assignment,
-                severity_class=case.severity_class,
-                sla_class=case.sla_class,
-                external_schema_json=_json_or_none(case.external_schema),
-                operational_mapping_json=_json_or_none(case.operational_mapping),
-                evidence_trace_json=_json_or_none(case.evidence_trace),
-                root_cause_hypothesis_json=_json_or_none(case.root_cause_hypothesis),
-                compliance_flags_json=_json_or_none(case.compliance_flags),
-                review_notes=case.review_notes,
-                classification_audit_json=_json_or_none(case.classification_audit),
-            )
-            db.add(db_case)
-
-            # Persist agent outputs into dedicated relational tables.
-            if case.classification:
-                c = case.classification
-                product_category = c.get("product_category")
-                if hasattr(product_category, "value"):
-                    product_category = product_category.value
-                issue_type = c.get("issue_type")
-                if hasattr(issue_type, "value"):
-                    issue_type = issue_type.value
-                db.add(
-                    ClassificationRecord(
-                        case_id=case.id,
-                        product_category=product_category,
-                        issue_type=issue_type,
-                        sub_issue=c.get("sub_issue"),
-                        confidence=c.get("confidence", 0.0),
-                        reasoning=c.get("reasoning"),
-                        review_recommended=bool(c.get("review_recommended", False)),
-                        reason_codes_json=_json_or_none(c.get("reason_codes")),
-                        keywords_json=_json_or_none(c.get("keywords")),
-                    )
-                )
-
-            if case.risk_assessment:
-                r = case.risk_assessment
-                risk_level = r.get("risk_level")
-                if hasattr(risk_level, "value"):
-                    risk_level = risk_level.value
-                db.add(
-                    RiskRecord(
-                        case_id=case.id,
-                        risk_level=risk_level,
-                        risk_score=r.get("risk_score", 0.0),
-                        regulatory_risk=r.get("regulatory_risk", False),
-                        financial_impact_estimate=r.get("financial_impact_estimate"),
-                        escalation_required=r.get("escalation_required", False),
-                        reasoning=r.get("reasoning"),
-                    )
-                )
-
-            if case.proposed_resolution:
-                res = case.proposed_resolution
-                recommended_action = res.get("recommended_action")
-                if hasattr(recommended_action, "value"):
-                    recommended_action = recommended_action.value
-                db.add(
-                    ResolutionRecord(
-                        case_id=case.id,
-                        recommended_action=recommended_action,
-                        description=res.get("description", ""),
-                        estimated_resolution_days=res.get("estimated_resolution_days", 1),
-                        monetary_amount=res.get("monetary_amount"),
-                        confidence=res.get("confidence", 0.0),
-                        reasoning=res.get("reasoning", ""),
-                    )
-                )
-
-        # Return the enriched response (and ensure it includes persisted outputs).
+        _persist_case_and_outputs(case)
         return case
 
     except Exception as exc:
@@ -303,3 +310,80 @@ async def list_complaints(limit: int = 20, offset: int = 0) -> list[CaseRead]:
 @router.get("/health", summary="Health check")
 async def health_check() -> dict:
     return {"status": "ok"}
+
+
+# ── Intake chat endpoints ────────────────────────────────────────────────────
+
+
+@router.post(
+    "/intake/session",
+    summary="Start a new intake chat session",
+)
+async def start_intake(company_id: str | None = None) -> dict:
+    """Start a channel-agnostic intake session (used by web chat and later voice)."""
+    session_id, state = start_intake_session(channel="web_chat", company_id=company_id)
+    return {
+        "session_id": session_id,
+        "agent_message": state.last_agent_message,
+        "packet": json.loads(state.packet.model_dump_json()),
+    }
+
+
+@router.post(
+    "/intake/session/{session_id}/message",
+    summary="Send a message to the intake agent and get the next response",
+)
+async def intake_message(session_id: str, message: str) -> dict:
+    """Single-turn chat with the intake agent for an existing session."""
+    try:
+        state = process_intake_message(session_id=session_id, user_message=message)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown intake session_id={session_id}",
+        )
+    except Exception as exc:
+        logger.exception("Intake engine failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Intake processing failed: {exc}",
+        ) from exc
+
+    return {
+        "session_id": session_id,
+        "agent_message": state.last_agent_message,
+        "packet": json.loads(state.packet.model_dump_json()),
+        "completed": state.completed,
+    }
+
+
+@router.post(
+    "/intake/session/{session_id}/finalize",
+    summary="Finalize an intake session and open a complaint case",
+    response_model=CaseRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def finalize_intake(session_id: str) -> CaseRead:
+    """Turn a completed intake session into a full complaint case."""
+    if get_intake_session(session_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown intake session_id={session_id}",
+        )
+    try:
+        case_create, _state = finalize_intake_session(session_id)
+        final_state = process_complaint(case_create.model_dump())
+        case: CaseRead = final_state["case"]
+        _persist_case_and_outputs(case)
+        return case
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed to finalize intake session")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Intake finalization failed: {exc}",
+        ) from exc

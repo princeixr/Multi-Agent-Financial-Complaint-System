@@ -81,7 +81,7 @@ def init_db() -> None:
         ]
 
         for table_name, columns in (
-            ("complaint_cases", complaint_case_columns),
+            ("complaint_cases", columns_to_ensure),
             ("classifications", classification_columns),
         ):
             existing = conn.execute(
