@@ -1,0 +1,207 @@
+/* Observatory — Custom styles */
+
+:root {
+  --on-error-container: 95 19 32;
+  --outline: 141 154 176;
+  --secondary-fixed-dim: 212 221 233;
+  --tertiary-container: 213 239 232;
+  --surface-container-high: 232 237 246;
+  --secondary-container: 219 227 240;
+  --tertiary: 27 138 116;
+  --on-primary: 255 255 255;
+  --background: 245 247 251;
+  --on-tertiary-container: 15 95 81;
+  --primary-fixed: 217 232 255;
+  --inverse-surface: 28 37 51;
+  --surface: 255 255 255;
+  --surface-container: 239 243 249;
+  --error: 180 35 58;
+  --secondary: 93 108 132;
+  --on-surface-variant: 93 105 128;
+  --primary-fixed-dim: 183 210 255;
+  --surface-tint: 31 90 166;
+  --surface-container-highest: 221 228 240;
+  --on-secondary-container: 53 66 90;
+  --surface-container-lowest: 255 255 255;
+  --error-container: 251 221 227;
+  --on-secondary: 255 255 255;
+  --surface-bright: 248 250 255;
+  --on-primary-container: 31 90 166;
+  --outline-variant: 204 213 230;
+  --on-background: 29 38 56;
+  --surface-container-low: 244 247 252;
+  --primary: 31 90 166;
+  --surface-variant: 231 236 244;
+  --primary-container: 219 233 255;
+  --on-surface: 29 38 56;
+  --on-error: 255 255 255;
+
+  --status-critical: 180 35 58;
+  --status-critical-shadow: 180 35 58;
+  --status-high: 212 81 103;
+  --status-medium: 124 139 163;
+  --status-low: 27 138 116;
+  --status-low-shadow: 27 138 116;
+  --table-row-hover-bg: 219 233 255;
+  --scrollbar-track: 238 242 248;
+  --scrollbar-thumb: 185 197 216;
+  --scrollbar-thumb-hover: 147 163 186;
+}
+
+.dark {
+  --on-error-container: 255 218 214;
+  --outline: 142 144 156;
+  --secondary-fixed-dim: 183 200 225;
+  --tertiary-container: 0 47 30;
+  --surface-container-high: 34 42 61;
+  --secondary-container: 58 74 95;
+  --tertiary: 78 222 163;
+  --on-primary: 0 46 104;
+  --background: 11 19 38;
+  --on-tertiary-container: 0 163 113;
+  --primary-fixed: 216 226 255;
+  --inverse-surface: 218 226 253;
+  --surface: 11 19 38;
+  --surface-container: 23 31 51;
+  --error: 255 180 171;
+  --secondary: 183 200 225;
+  --on-surface-variant: 197 198 210;
+  --primary-fixed-dim: 173 199 255;
+  --surface-tint: 173 199 255;
+  --surface-container-highest: 45 52 73;
+  --on-secondary-container: 169 186 211;
+  --surface-container-lowest: 6 14 32;
+  --error-container: 147 0 10;
+  --on-secondary: 33 49 69;
+  --surface-bright: 49 57 77;
+  --on-primary-container: 71 141 255;
+  --outline-variant: 68 70 80;
+  --on-background: 218 226 253;
+  --surface-container-low: 19 27 46;
+  --primary: 173 199 255;
+  --surface-variant: 45 52 73;
+  --primary-container: 0 39 89;
+  --on-surface: 218 226 253;
+  --on-error: 105 0 5;
+
+  --status-critical: 255 180 171;
+  --status-critical-shadow: 255 180 171;
+  --status-high: 255 180 171;
+  --status-medium: 183 200 225;
+  --status-low: 78 222 163;
+  --status-low-shadow: 78 222 163;
+  --table-row-hover-bg: 19 27 46;
+  --scrollbar-track: 11 19 38;
+  --scrollbar-thumb: 45 52 73;
+  --scrollbar-thumb-hover: 68 70 80;
+}
+
+/* Glass panels for overlay elements */
+.glass-panel {
+  background: rgb(var(--surface) / 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgb(var(--primary) / 0.12);
+}
+
+/* Glow effects */
+.glow-primary {
+  box-shadow: 0 8px 24px rgb(var(--primary) / 0.2);
+}
+
+.glow-error {
+  box-shadow: 0 8px 22px rgb(var(--error) / 0.2);
+}
+
+.glow-tertiary {
+  box-shadow: 0 8px 22px rgb(var(--tertiary) / 0.2);
+}
+
+/* Trace flow connectors */
+.trace-connector {
+  position: relative;
+}
+
+.trace-connector::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -2rem;
+  width: 2rem;
+  height: 2px;
+  background: linear-gradient(to right, rgb(var(--primary-fixed-dim)), rgb(var(--outline-variant)));
+}
+
+.trace-connector:last-child::after {
+  display: none;
+}
+
+/* Status dot indicators */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.critical { background: rgb(var(--status-critical)); box-shadow: 0 0 8px rgb(var(--status-critical-shadow) / 0.45); }
+.status-dot.high { background: rgb(var(--status-high)); opacity: 0.85; }
+.status-dot.medium { background: rgb(var(--status-medium)); }
+.status-dot.low { background: rgb(var(--status-low)); box-shadow: 0 0 8px rgb(var(--status-low-shadow) / 0.4); }
+
+/* Confidence bar */
+.confidence-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--surface-variant));
+  overflow: hidden;
+}
+
+.confidence-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* Ghost borders for accessibility */
+.ghost-border {
+  border: 1px solid rgb(var(--outline) / 0.3);
+}
+
+/* Smooth page transitions */
+main {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Table row hover */
+.table-row-hover {
+  transition: background-color 0.15s ease;
+}
+
+.table-row-hover:hover {
+  background-color: rgb(var(--table-row-hover-bg) / 0.55);
+}
+
+/* Scrollbar styling for light theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--scrollbar-track));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scrollbar-thumb-hover));
+}

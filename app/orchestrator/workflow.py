@@ -26,7 +26,7 @@ from app.agents.routing import run_routing
 from app.agents.supervisor import run_supervisor
 from app.observability.context import ActiveRun, reset_active_run, set_active_run, set_trace_id
 from app.observability.events import log_workflow_event
-from app.observability.instrumentation import wrap_node
+from app.observability.instrumentation import wrap_node, wrap_supervisor_node
 from app.observability.persistence import (
     derive_run_outcome,
     finalize_workflow_run,
@@ -36,7 +36,6 @@ from app.observability.tracing import get_workflow_tracer, setup_tracing, trace_
 from app.observability.versions import workflow_version
 from app.orchestrator.state import WorkflowState
 from app.schemas.case import CaseCreate, CaseStatus
-from app.schemas.evidence import EvidenceItem, EvidenceTrace
 
 logger = logging.getLogger(__name__)
 
@@ -229,14 +228,27 @@ def review_node(state: WorkflowState) -> WorkflowState:
 
 def routing_node(state: WorkflowState) -> WorkflowState:
     """Deterministic routing based on company knowledge pack rules."""
+    from app.agents.tools import _company_knowledge_singleton
+
     case = state["case"]
+    company_id = state.get("company_id", "mock_bank")
+
+    # Fetch company-specific routing rules
+    company_context = None
+    try:
+        svc = _company_knowledge_singleton(company_id)
+        ctx = svc.build_company_context("")
+        company_context = {"routing_candidates": ctx.routing_candidates}
+    except Exception:
+        logger.warning("Could not load company routing rules for %s, using defaults", company_id)
+
     destination = run_routing(
         case=case,
         classification=state["classification"],
         risk=state["risk_assessment"],
         root_cause_hypothesis=state.get("root_cause_hypothesis"),
         review_decision=state.get("review", {}).get("decision", "approve"),
-        company_context=state.get("company_context"),
+        company_context=company_context,
     )
 
     case.routed_to = destination
@@ -266,7 +278,7 @@ def build_workflow() -> StateGraph:
     graph.add_node("intake", wrap_node("intake", intake_node))
 
     # Supervisor (the brain — routes via Command)
-    graph.add_node("supervisor", supervisor_node)
+    graph.add_node("supervisor", wrap_supervisor_node(supervisor_node))
 
     # Specialist nodes (wrapped for observability)
     graph.add_node(_NODE_CLASSIFY, wrap_node("classify", classify_node))

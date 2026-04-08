@@ -100,14 +100,16 @@ def run_agent_with_tools(
     # If we exhausted rounds, force a response without tools
     logger.warning("Agent exhausted %d tool rounds, forcing final response", max_rounds)
     final = llm.invoke(messages)  # no tools bound — forces text response
-    parsed = parse_llm_json(final.content)
-    if return_evidence:
-        return parsed, _evidence_flags(tools_called)
-    return parsed
-
-
-def _evidence_flags(tools_called: set[str]) -> dict[str, bool]:
-    return {
-        "similar_complaints_tool": "search_similar_complaints" in tools_called,
-        "taxonomy_tool": "lookup_company_taxonomy" in tools_called,
-    }
+    try:
+        return parse_llm_json(final.content)
+    except Exception as first_error:
+        logger.warning("Final response was not valid JSON; requesting JSON repair")
+        repair_prompt = (
+            "Return ONLY a valid JSON object for the previously requested schema. "
+            "Do not call tools, do not include markdown, prose, or tags."
+        )
+        repaired = llm.invoke([*messages, AIMessage(content=final.content), HumanMessage(content=repair_prompt)])
+        try:
+            return parse_llm_json(repaired.content)
+        except Exception:
+            raise first_error

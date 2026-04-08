@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-8">
+  <h1 class="text-3xl font-headline font-extrabold tracking-tight">Company Settings</h1>
+  <p class="text-sm text-on-surface-variant mt-1">
+    Configuration for <span class="font-mono text-primary">{{ data.company_id }}</span> — routing logic, risk taxonomies, and severity rubrics.
+  </p>
+</div>
+
+<div class="grid grid-cols-12 gap-6">
+
+  <!-- Severity Rubric -->
+  <div class="col-span-5">
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-error">warning</span>
+        <h2 class="font-headline font-bold text-lg">Severity Rubrics</h2>
+      </div>
+      {% if data.severity_rubric %}
+      <div class="space-y-3">
+        {% set tier_colors = {"critical": "border-error", "high": "border-error/60", "medium": "border-secondary", "low": "border-tertiary"} %}
+        {% for tier in data.severity_rubric %}
+        <div class="pl-4 border-l-2 {{ tier_colors.get(tier.get('level', ''), 'border-outline-variant') }}">
+          <div class="text-sm font-bold uppercase
+                      {% if tier.get('level') == 'critical' %}text-error
+                      {% elif tier.get('level') == 'high' %}text-error/70
+                      {% elif tier.get('level') == 'low' %}text-tertiary
+                      {% else %}text-secondary{% endif %}">
+            {{ tier.get('level', 'Unknown') | upper }}
+          </div>
+          {% if tier.get('description') %}
+          <div class="text-xs text-on-surface-variant mt-0.5">{{ tier.get('description') }}</div>
+          {% endif %}
+          {% if tier.get('escalation') %}
+          <div class="text-[10px] text-error/60 mt-0.5">Escalation required</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-sm text-on-surface-variant/50">No severity rubric configured</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Routing Rules -->
+  <div class="col-span-7">
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-tertiary">alt_route</span>
+        <h2 class="font-headline font-bold text-lg">Routing Rules</h2>
+      </div>
+      {% if data.routing_rules %}
+      {% if data.routing_rules.get('team_by_product_category') %}
+      <div class="bg-surface-container rounded-lg p-4 border-l-4 border-primary mb-4">
+        <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-bold">Team by Product Category</div>
+        <div class="space-y-1.5">
+          {% for product, team in data.routing_rules['team_by_product_category'].items() %}
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-primary font-mono">{{ product }}</span>
+            <span class="text-on-surface-variant/40">→</span>
+            <span class="text-tertiary">{{ team | replace('_', ' ') | title }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if data.routing_rules.get('executive_team') %}
+      <div class="flex gap-4 text-xs">
+        <div class="bg-surface-container rounded-lg p-3 flex-1">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Executive Team</div>
+          <div class="text-on-surface font-semibold">{{ data.routing_rules['executive_team'] | replace('_', ' ') | title }}</div>
+        </div>
+        {% if data.routing_rules.get('management_escalation_team') %}
+        <div class="bg-surface-container rounded-lg p-3 flex-1">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Escalation Team</div>
+          <div class="text-on-surface font-semibold">{{ data.routing_rules['management_escalation_team'] | replace('_', ' ') | title }}</div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="text-sm text-on-surface-variant/50">No routing rules configured</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Taxonomy -->
+  <div class="col-span-12">
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-primary">category</span>
+        <h2 class="font-headline font-bold text-lg">Risk Taxonomy</h2>
+      </div>
+      {% if data.taxonomy %}
+      <div class="grid grid-cols-2 gap-6">
+        {% if data.taxonomy.get('product_categories') %}
+        <div>
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-3 font-bold">Product Categories</div>
+          <div class="flex flex-wrap gap-2">
+            {% for cat in data.taxonomy['product_categories'] %}
+            <span class="px-3 py-1.5 bg-surface-container rounded-full text-xs text-on-surface-variant hover:bg-surface-container-high transition-colors">
+              {% if cat is mapping %}{{ cat.get('name', cat) }}{% else %}{{ cat }}{% endif %}
+            </span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if data.taxonomy.get('issue_types') %}
+        <div>
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-3 font-bold">Issue Types</div>
+          <div class="flex flex-wrap gap-2">
+            {% for issue in data.taxonomy['issue_types'] %}
+            <span class="px-3 py-1.5 bg-surface-container rounded-full text-xs text-on-surface-variant hover:bg-surface-container-high transition-colors">
+              {% if issue is mapping %}{{ issue.get('name', issue) }}{% else %}{{ issue }}{% endif %}
+            </span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="text-sm text-on-surface-variant/50">No taxonomy configured</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Root Cause Controls -->
+  {% if data.root_cause_controls %}
+  <div class="col-span-12">
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-secondary">troubleshoot</span>
+        <h2 class="font-headline font-bold text-lg">Root Cause Controls</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-4">
+        {% for control in data.root_cause_controls %}
+        <div class="bg-surface-container rounded-lg p-4">
+          {% if control is mapping %}
+          <div class="text-sm font-semibold text-on-surface mb-1">{{ control.get('name', 'Control') }}</div>
+          {% if control.get('description') %}
+          <div class="text-xs text-on-surface-variant">{{ control.get('description') }}</div>
+          {% endif %}
+          {% else %}
+          <div class="text-sm text-on-surface">{{ control }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

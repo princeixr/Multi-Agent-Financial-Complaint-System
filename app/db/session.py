@@ -52,12 +52,15 @@ def init_db() -> None:
         conn.commit()
         logger.info("pgvector extension ensured")
 
-        # When the demo repo evolves, new columns may be added to existing
-        # tables. Since this project doesn't ship with Alembic migrations,
-        # we do safe "add column if missing" for the known schema upgrades.
-        #
-        # This keeps the service operable across code iterations.
-        complaint_case_columns: list[tuple[str, str]] = [
+    # Create tables first — must exist before migration block runs
+    Base.metadata.create_all(bind=engine)
+    logger.info("All database tables created / verified")
+
+    # When the demo repo evolves, new columns may be added to existing
+    # tables. Since this project doesn't ship with Alembic migrations,
+    # we do safe "add column if missing" for the known schema upgrades.
+    with engine.connect() as conn:
+        columns_to_ensure: list[tuple[str, str]] = [
             ("external_schema_json", "TEXT"),
             ("operational_mapping_json", "TEXT"),
             ("evidence_trace_json", "TEXT"),
@@ -104,9 +107,6 @@ def init_db() -> None:
                     )
                 )
         conn.commit()
-
-    Base.metadata.create_all(bind=engine)
-    logger.info("All database tables created / verified")
 
 
 @contextmanager

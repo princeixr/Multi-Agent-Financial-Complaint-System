@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Supervisor Trace{% endblock %}
+
+{% block content %}
+{% if run is none %}
+<div class="py-16 text-center">
+  <span class="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">account_tree</span>
+  <p class="text-lg font-headline font-bold text-on-surface-variant/60">Trace not found</p>
+  <a href="/" class="text-sm text-primary hover:underline mt-2 inline-block">Back to dashboard</a>
+</div>
+{% else %}
+
+<!-- Back Navigation -->
+<div class="mb-6">
+  <a href="/" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back to dashboard
+  </a>
+</div>
+
+<!-- Trace Header -->
+<div class="flex items-start justify-between mb-8">
+  <div class="flex items-center gap-4">
+    {% set status_badge = {
+      "completed": "bg-tertiary/15 text-tertiary",
+      "escalated": "bg-error/15 text-error",
+      "failed": "bg-error/15 text-error",
+    } %}
+    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase
+                  {{ status_badge.get(run.run_status, 'bg-surface-container-highest text-on-surface-variant') }}">
+      {{ run.run_status or 'unknown' }}
+    </span>
+    <div>
+      <h1 class="text-2xl font-headline font-extrabold tracking-tight">
+        Trace <span class="text-primary font-mono">#{{ run.run_id[:8] }}</span>
+      </h1>
+      <p class="text-sm text-on-surface-variant mt-0.5">
+        {% if run.started_at %}Started at {{ run.started_at.strftime('%H:%M:%S') }}{% endif %}
+        &middot; Total Latency: <span class="font-mono text-primary">{{ total_latency }}ms</span>
+        &middot; {{ step_count }} steps
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Step Flow -->
+<div class="mb-8">
+  <h2 class="font-headline font-bold text-lg mb-4">Execution Flow</h2>
+  <div class="flex flex-wrap gap-3">
+    {% for step in steps %}
+    <div class="flex items-center gap-3">
+      <!-- Step Card -->
+      <div class="glass-panel rounded-xl p-4 min-w-[180px]
+                  {% if step.status == 'failure' %}border-error/30{% else %}border-primary/10{% endif %}">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold uppercase tracking-wide
+                       {% if step.node_name == 'supervisor' %}text-primary
+                       {% elif step.status == 'failure' %}text-error
+                       {% else %}text-on-surface{% endif %}">
+            {{ step.node_name | replace('_', ' ') }}
+          </span>
+          <span class="text-[10px] font-mono text-on-surface-variant">{{ step.latency_ms }}ms</span>
+        </div>
+
+        <!-- Status indicator -->
+        <div class="flex items-center gap-1.5 mb-2">
+          {% if step.status == 'success' %}
+          <span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+          <span class="text-[10px] text-tertiary">Success</span>
+          {% elif step.status == 'failure' %}
+          <span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+          <span class="text-[10px] text-error">Failed</span>
+          {% else %}
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+          <span class="text-[10px] text-secondary">{{ step.status }}</span>
+          {% endif %}
+          {% if step.retry_number and step.retry_number > 0 %}
+          <span class="px-1.5 py-0.5 rounded bg-error/20 text-[9px] text-error font-bold ml-1">RETRY #{{ step.retry_number }}</span>
+          {% endif %}
+        </div>
+
+        <!-- Details -->
+        {% if step.node_name == 'supervisor' and step.output %}
+          {% if step.output.goto %}
+          <div class="text-[10px] text-on-surface-variant">
+            <span class="text-primary">→</span> {{ step.output.goto }}
+          </div>
+          {% endif %}
+          {% if step.output.reasoning %}
+          <div class="text-[10px] text-on-surface-variant/60 mt-1 line-clamp-2">{{ step.output.reasoning }}</div>
+          {% endif %}
+        {% endif %}
+
+        {% if step.confidence %}
+        <div class="text-[10px] text-on-surface-variant mt-1">Confidence: {{ (step.confidence * 100) | int }}%</div>
+        {% endif %}
+
+        {% if step.model_name %}
+        <div class="text-[9px] text-on-surface-variant/40 mt-1 font-mono">{{ step.model_name }}</div>
+        {% endif %}
+
+        {% if step.error_message %}
+        <div class="text-[10px] text-error/70 mt-1 line-clamp-2">{{ step.error_message[:100] }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Connector arrow (except last) -->
+      {% if not loop.last %}
+      <div class="w-6 h-px bg-gradient-to-r from-primary/40 to-outline-variant/20 relative">
+        <div class="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent border-l-[5px] border-l-primary/40"></div>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Latency Waterfall -->
+{% if steps %}
+<div class="grid grid-cols-12 gap-6">
+  <div class="col-span-6">
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <h2 class="font-headline font-bold text-lg mb-4">Latency Waterfall</h2>
+      <div class="space-y-3">
+        {% for step in steps %}
+        {% set pct = (step.latency_ms / total_latency * 100) if total_latency > 0 else 0 %}
+        <div class="flex items-center gap-3">
+          <div class="w-24 text-xs text-on-surface-variant truncate">{{ step.node_name | replace('_', ' ') }}</div>
+          <div class="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-500
+                        {% if step.node_name == 'supervisor' %}bg-primary/60
+                        {% elif step.status == 'failure' %}bg-error
+                        {% else %}bg-primary{% endif %}"
+                 style="width: {{ pct | int }}%"></div>
+          </div>
+          <div class="w-16 text-right text-xs font-mono text-on-surface-variant">{{ step.latency_ms }}ms</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-6">
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <h2 class="font-headline font-bold text-lg mb-4">Execution Context</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-surface-container rounded-lg p-3">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Run ID</div>
+          <div class="text-xs font-mono text-on-surface">{{ run.run_id[:16] }}</div>
+        </div>
+        <div class="bg-surface-container rounded-lg p-3">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Company</div>
+          <div class="text-xs text-on-surface">{{ run.company_id or '—' }}</div>
+        </div>
+        <div class="bg-surface-container rounded-lg p-3">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Status</div>
+          <div class="text-xs text-on-surface">{{ run.run_status or '—' }}</div>
+        </div>
+        <div class="bg-surface-container rounded-lg p-3">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Steps</div>
+          <div class="text-xs font-mono text-on-surface">{{ step_count }}</div>
+        </div>
+        {% if run.final_route %}
+        <div class="bg-surface-container rounded-lg p-3">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Final Route</div>
+          <div class="text-xs text-on-surface">{{ run.final_route | replace('_', ' ') | title }}</div>
+        </div>
+        {% endif %}
+        {% if run.final_severity %}
+        <div class="bg-surface-container rounded-lg p-3">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Severity</div>
+          <div class="text-xs font-bold uppercase
+                      {% if run.final_severity == 'critical' %}text-error
+                      {% elif run.final_severity == 'high' %}text-error/70
+                      {% else %}text-on-surface{% endif %}">
+            {{ run.final_severity }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

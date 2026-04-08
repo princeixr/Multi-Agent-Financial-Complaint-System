@@ -291,10 +291,11 @@ def main() -> None:
             "No valid rows: need narrative >= 10 characters or non-empty Product+Issue."
         )
 
-    sample_df = df.loc[valid_mask].head(SAMPLE_COUNT)
-    n_available = int(valid_mask.sum())
-    n_run = len(sample_df)
-    print(f"\nValid rows in file: {n_available}; running first {n_run} (SAMPLE_COUNT={SAMPLE_COUNT}).")
+    valid_df = df.loc[valid_mask]
+    n_available = len(valid_df)
+    n_run = min(SAMPLE_COUNT, n_available)
+    sample_df = valid_df.sample(n=n_run)
+    print(f"\nValid rows in file: {n_available}; running {n_run} random sample(s) (SAMPLE_COUNT={SAMPLE_COUNT}).")
     if n_run < SAMPLE_COUNT:
         print(f"Note: fewer than {SAMPLE_COUNT} valid rows; only {n_run} executed.")
 

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-8">
+  <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Performance &middot; Analytics Overview</p>
+  <h1 class="text-3xl font-headline font-extrabold tracking-tight">Complaint Analytics</h1>
+</div>
+
+<div class="grid grid-cols-12 gap-6">
+  <!-- Left: KPI Cards -->
+  <div class="col-span-3 space-y-6">
+    <!-- Total Complaints -->
+    <div class="bg-surface-container rounded-xl p-6 relative overflow-hidden">
+      <div class="absolute top-4 right-4 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+        <span class="material-symbols-outlined text-primary">inbox</span>
+      </div>
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-bold">Complaint Volume</div>
+      <div class="text-3xl font-headline font-extrabold tracking-tighter">{{ data.total_complaints | default(0) }}</div>
+      <div class="text-[10px] text-on-surface-variant mt-1">Total processed</div>
+    </div>
+
+    <!-- Avg Resolution Time -->
+    <div class="bg-surface-container rounded-xl p-6 relative overflow-hidden">
+      <div class="absolute top-4 right-4 w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
+        <span class="material-symbols-outlined text-tertiary">schedule</span>
+      </div>
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-bold">Avg. Resolution</div>
+      <div class="text-3xl font-headline font-extrabold tracking-tighter">
+        {{ "%.1f" | format(data.avg_resolution_seconds / 60) if data.avg_resolution_seconds else "0" }}<span class="text-lg text-on-surface-variant ml-1">min</span>
+      </div>
+      <div class="text-[10px] text-on-surface-variant mt-1">Average processing time</div>
+    </div>
+
+    <!-- Risk Breakdown -->
+    <div class="bg-surface-container rounded-xl p-6">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-3 font-bold">Risk Distribution</div>
+      {% set risk_colors = {"critical": "bg-error", "high": "bg-error/60", "medium": "bg-secondary", "low": "bg-tertiary"} %}
+      {% set total_risk = data.risk_counts.values() | sum if data.risk_counts else 1 %}
+      <div class="space-y-2">
+        {% for level in ['critical', 'high', 'medium', 'low'] %}
+        {% set count = data.risk_counts.get(level, 0) %}
+        {% set pct = (count / total_risk * 100) if total_risk > 0 else 0 %}
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="uppercase font-semibold
+                         {% if level == 'critical' %}text-error
+                         {% elif level == 'high' %}text-error/70
+                         {% elif level == 'low' %}text-tertiary
+                         {% else %}text-secondary{% endif %}">{{ level }}</span>
+            <span class="font-mono text-on-surface-variant">{{ count }}</span>
+          </div>
+          <div class="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+            <div class="{{ risk_colors.get(level, 'bg-secondary') }} h-full rounded-full" style="width: {{ pct | int }}%"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Charts -->
+  <div class="col-span-9 space-y-6">
+    <!-- Complaints by Category -->
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <h2 class="font-headline font-bold text-lg mb-4">Complaint Volume by Category</h2>
+      {% if data.category_counts %}
+      <canvas id="categoryChart" height="200"></canvas>
+      {% else %}
+      <div class="py-8 text-center text-on-surface-variant/50 text-sm">No category data available</div>
+      {% endif %}
+    </div>
+
+    <!-- Team Workload -->
+    <div class="bg-surface-container-low rounded-xl p-6">
+      <h2 class="font-headline font-bold text-lg mb-4">Team Workload</h2>
+      {% if data.team_counts %}
+      {% set max_team = data.team_counts.values() | max if data.team_counts else 1 %}
+      <div class="space-y-3">
+        {% for team, count in data.team_counts.items() %}
+        <div class="flex items-center gap-4">
+          <div class="w-40 text-sm text-on-surface truncate">{{ team | replace('_', ' ') | title }}</div>
+          <div class="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden">
+            <div class="h-full bg-primary rounded-full" style="width: {{ (count / max_team * 100) | int }}%"></div>
+          </div>
+          <div class="w-12 text-right text-xs font-mono text-on-surface-variant">{{ count }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-8 text-center text-on-surface-variant/50 text-sm">No routing data available</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if data.category_counts %}
+  const ctx = document.getElementById('categoryChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: {{ data.category_counts.keys() | list | tojson }},
+      datasets: [{
+        data: {{ data.category_counts.values() | list | tojson }},
+        backgroundColor: 'rgba(173, 199, 255, 0.3)',
+        borderColor: 'rgba(173, 199, 255, 0.8)',
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(68, 70, 80, 0.15)' },
+          ticks: { color: '#c5c6d2', font: { family: 'Inter', size: 11 } },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#c5c6d2', font: { family: 'Inter', size: 11 } },
+        }
+      }
+    }
+  });
+{% endif %}
+</script>
+{% endblock %}

@@ -46,11 +46,12 @@ from langchain_core.documents import Document
 from app.db.session import init_db
 from app.retrieval.complaint_index import ComplaintIndex
 from app.retrieval.resolution_index import ResolutionIndex
+from app.utils.pii import redact_pii
 
 logger = logging.getLogger(__name__)
 
 # Default location of the CFPB dataset
-DEFAULT_CSV = Path(__file__).resolve().parent.parent.parent / "complaints 2.csv"
+DEFAULT_CSV = Path(__file__).resolve().parent.parent.parent / "complaints.csv"
 
 # ── Column mappings (CFPB dataset) ───────────────────────────────────────────
 COL_NARRATIVE = "Consumer complaint narrative"
@@ -190,6 +191,8 @@ def _row_to_complaint_doc(row: dict) -> Optional[Document]:
     if len(narrative) < MIN_NARRATIVE_LENGTH:
         return None
 
+    narrative = redact_pii(narrative)
+
     page_content = (
         f"Product: {row.get(COL_PRODUCT, 'N/A')}\n"
         f"Issue: {row.get(COL_ISSUE, 'N/A')}\n"
@@ -218,6 +221,8 @@ def _row_to_resolution_doc(row: dict) -> Optional[Document]:
     response = (row.get(COL_RESPONSE) or "").strip()
     if len(narrative) < MIN_NARRATIVE_LENGTH or not response:
         return None
+
+    narrative = redact_pii(narrative)
 
     company_public = (row.get(COL_COMPANY_PUBLIC_RESPONSE) or "").strip()
 

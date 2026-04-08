@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import router as api_router
 from app.db.session import init_db
 from app.observability.logging import setup_logging
 from app.observability.tracing import setup_tracing
+from app.ui import router as ui_router
 
 
 @asynccontextmanager
@@ -35,10 +38,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static files (CSS, JS)
+static_dir = Path(__file__).resolve().parent / "app" / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# API routes
 app.include_router(api_router)
 
-
-@app.get("/", include_in_schema=False)
-async def root() -> dict:
-    return {"service": "complaint-classification", "docs": "/docs"}
-
+# UI routes (HTML views)
+app.include_router(ui_router)

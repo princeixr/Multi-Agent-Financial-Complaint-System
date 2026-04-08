@@ -182,3 +182,124 @@ def wrap_node(
             return out
 
     return _wrapped
+
+
+def wrap_supervisor_node(
+    fn: Callable[[WorkflowState], Any],
+) -> Callable[[WorkflowState], Any]:
+    """Decorate the supervisor node with tracing + audit.
+
+    Unlike ``wrap_node``, this handles the supervisor's ``Command`` return
+    type — it records the routing decision without trying to summarize the
+    output as a WorkflowState.
+    """
+
+    node_name = "supervisor"
+
+    def _wrapped(state: WorkflowState) -> Any:
+        ar = get_active_run()
+        if ar is None:
+            return fn(state)
+
+        seq = ar.next_sequence()
+        t0 = monotonic_ms()
+        started_at = datetime.utcnow()
+        tracer = get_workflow_tracer()
+        model_name = default_chat_model()
+
+        log_workflow_event(
+            "node_started",
+            node_name=node_name,
+            sequence_number=seq,
+        )
+
+        with tracer.start_as_current_span(f"node.{node_name}") as span:
+            span.set_attribute("workflow.node", node_name)
+            span.set_attribute("complaint.run_id", ar.run_id)
+            span.set_attribute("complaint.company_id", ar.company_id)
+            if ar.case_id:
+                span.set_attribute("complaint.case_id", ar.case_id)
+            tid = trace_id_hex_from_span(span)
+            if tid and not ar.trace_id:
+                set_trace_id(tid)
+
+            try:
+                command = fn(state)
+            except Exception as exc:
+                ended_at = datetime.utcnow()
+                latency_ms = monotonic_ms() - t0
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, str(exc)))
+                log_workflow_event(
+                    "workflow_failed",
+                    node_name=node_name,
+                    sequence_number=seq,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc)[:500],
+                    latency_ms=round(latency_ms, 2),
+                )
+                insert_workflow_step(
+                    run_id=ar.run_id,
+                    node_name=node_name,
+                    sequence_number=seq,
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    latency_ms=latency_ms,
+                    status="failure",
+                    retry_number=0,
+                    model_name=model_name,
+                    input_snapshot_json=None,
+                    output_snapshot_json=None,
+                    state_diff_json=None,
+                    confidence=None,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc)[:2000],
+                )
+                raise
+
+            ended_at = datetime.utcnow()
+            latency_ms = monotonic_ms() - t0
+            span.set_status(Status(StatusCode.OK))
+
+            # Extract routing decision from the Command for logging
+            goto = getattr(command, "goto", None)
+            update = getattr(command, "update", {}) or {}
+            reasoning = update.get("supervisor_reasoning", "")
+
+            span.set_attribute("supervisor.goto", str(goto))
+            if reasoning:
+                span.set_attribute("supervisor.reasoning", reasoning[:300])
+
+            output_snapshot = dumps_compact({
+                "goto": str(goto),
+                "reasoning": reasoning,
+                "instructions": update.get("supervisor_instructions", ""),
+            })
+
+            log_workflow_event(
+                "node_completed",
+                node_name=node_name,
+                sequence_number=seq,
+                status="success",
+                latency_ms=round(latency_ms, 2),
+            )
+
+            insert_workflow_step(
+                run_id=ar.run_id,
+                node_name=node_name,
+                sequence_number=seq,
+                started_at=started_at,
+                ended_at=ended_at,
+                latency_ms=latency_ms,
+                status="success",
+                retry_number=0,
+                model_name=model_name,
+                input_snapshot_json=None,
+                output_snapshot_json=output_snapshot,
+                state_diff_json=None,
+                confidence=None,
+            )
+
+            return command
+
+    return _wrapped

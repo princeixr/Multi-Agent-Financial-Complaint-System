@@ -22,3 +22,4 @@ __pycache__/
 # Local CSV/report artifacts (if you generate more)
 *.csv
 !complaints 2.csv   # only if you really want to track a specific small sample
+ui_examples/

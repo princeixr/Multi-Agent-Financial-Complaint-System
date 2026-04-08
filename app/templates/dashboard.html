@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-8">
+  <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Portfolio Overview</p>
+  <div class="flex items-end justify-between">
+    <div>
+      <h1 class="text-4xl font-headline font-extrabold tracking-tight">Complaint Queue</h1>
+      <p class="text-sm text-on-surface-variant mt-1">System-wide complaint monitoring with real-time AI classification and risk assessment triggers.</p>
+    </div>
+    <div class="flex gap-4">
+      <!-- KPI: Active Intake -->
+      <div class="bg-surface-container rounded-xl p-4 min-w-[140px]">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-symbols-outlined text-primary text-lg">inbox</span>
+          <span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Active</span>
+        </div>
+        <div class="text-3xl font-headline font-extrabold tracking-tighter">{{ total }}</div>
+        <div class="text-[10px] text-on-surface-variant">Total complaints</div>
+      </div>
+      <!-- KPI: Critical Risk -->
+      <div class="bg-surface-container rounded-xl p-4 min-w-[140px]">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-symbols-outlined text-error text-lg">warning</span>
+          <span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Critical</span>
+        </div>
+        <div class="text-3xl font-headline font-extrabold tracking-tighter text-error">{{ critical_count }}</div>
+        <div class="text-[10px] text-on-surface-variant">Critical risk cases</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Complaints Table -->
+<div class="bg-surface-container-low rounded-xl overflow-hidden">
+  <!-- Table Header -->
+  <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-surface-container-high/50 border-b border-outline-variant/10">
+    <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Case ID</div>
+    <div class="col-span-3 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Subject / Product</div>
+    <div class="col-span-1 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Status</div>
+    <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Risk Level</div>
+    <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Assigned Team</div>
+    <div class="col-span-1 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">AI Conf.</div>
+    <div class="col-span-1 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant text-right">Actions</div>
+  </div>
+
+  {% if cases %}
+  {% for case in cases %}
+  <a href="/complaints/{{ case.id }}" class="grid grid-cols-12 gap-4 px-6 py-4 items-center table-row-hover border-b border-outline-variant/5 block">
+    <!-- Case ID -->
+    <div class="col-span-2">
+      <span class="font-mono text-xs text-primary">#{{ case.id[:12] }}</span>
+    </div>
+
+    <!-- Subject / Product -->
+    <div class="col-span-3">
+      <div class="text-sm font-medium text-on-surface leading-snug">{{ case.subject }}</div>
+      {% if case.product %}
+      <div class="text-[11px] text-on-surface-variant mt-0.5">{{ case.product }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Status Badge -->
+    <div class="col-span-1">
+      {% set status_colors = {
+        "routed": "bg-tertiary/15 text-tertiary",
+        "reviewed": "bg-primary/15 text-primary",
+        "classified": "bg-secondary-container text-on-secondary-container",
+        "risk_assessed": "bg-secondary-container text-on-secondary-container",
+        "resolution_proposed": "bg-primary/15 text-primary",
+        "compliance_checked": "bg-primary/15 text-primary",
+        "intake_complete": "bg-surface-container-highest text-on-surface-variant",
+      } %}
+      <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide
+                    {{ status_colors.get(case.status, 'bg-surface-container-highest text-on-surface-variant') }}">
+        {{ case.status | replace('_', ' ') }}
+      </span>
+    </div>
+
+    <!-- Risk Level -->
+    <div class="col-span-2 flex items-center gap-2">
+      {% if case.risk_level %}
+        {% set risk_colors = {
+          "critical": "critical",
+          "high": "high",
+          "medium": "medium",
+          "low": "low",
+        } %}
+        <span class="status-dot {{ risk_colors.get(case.risk_level, 'medium') }}"></span>
+        <span class="text-xs font-semibold uppercase
+                      {% if case.risk_level == 'critical' %}text-error
+                      {% elif case.risk_level == 'high' %}text-error/70
+                      {% elif case.risk_level == 'low' %}text-tertiary
+                      {% else %}text-secondary{% endif %}">
+          {{ case.risk_level }}
+        </span>
+      {% else %}
+        <span class="text-xs text-on-surface-variant/50">—</span>
+      {% endif %}
+    </div>
+
+    <!-- Assigned Team -->
+    <div class="col-span-2">
+      {% if case.routed_to %}
+      <span class="text-xs text-on-surface-variant">{{ case.routed_to | replace('_', ' ') | title }}</span>
+      {% else %}
+      <span class="text-xs text-on-surface-variant/50">Unassigned</span>
+      {% endif %}
+    </div>
+
+    <!-- AI Confidence -->
+    <div class="col-span-1">
+      {% if case.confidence is not none %}
+      <div class="flex items-center gap-2">
+        <div class="confidence-bar w-12">
+          <div class="confidence-bar-fill
+                      {% if case.confidence >= 0.8 %}bg-tertiary
+                      {% elif case.confidence >= 0.6 %}bg-primary
+                      {% else %}bg-error{% endif %}"
+               style="width: {{ (case.confidence * 100) | int }}%"></div>
+        </div>
+        <span class="text-xs font-mono text-on-surface-variant">{{ (case.confidence * 100) | int }}%</span>
+      </div>
+      {% else %}
+      <span class="text-xs text-on-surface-variant/50">—</span>
+      {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="col-span-1 text-right">
+      <span class="material-symbols-outlined text-on-surface-variant/50 text-lg hover:text-on-surface transition-colors">chevron_right</span>
+    </div>
+  </a>
+  {% endfor %}
+  {% else %}
+  <!-- Empty State -->
+  <div class="py-16 text-center">
+    <span class="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">inbox</span>
+    <p class="text-lg font-headline font-bold text-on-surface-variant/60">No complaints yet</p>
+    <p class="text-sm text-on-surface-variant/40 mt-1">Submit a complaint via the API to see it here.</p>
+    <p class="text-xs text-on-surface-variant/30 mt-3 font-mono">POST /api/v1/complaints</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex items-center justify-between mt-6">
+  <p class="text-xs text-on-surface-variant">
+    Showing {{ ((page - 1) * limit) + 1 }}–{{ [page * limit, total] | min }} of {{ total }} complaints
+  </p>
+  <div class="flex gap-1">
+    {% if page > 1 %}
+    <a href="/?page={{ page - 1 }}" class="px-3 py-1.5 rounded-lg text-xs bg-surface-container hover:bg-surface-container-high text-on-surface-variant transition-colors">Prev</a>
+    {% endif %}
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+      <span class="px-3 py-1.5 rounded-lg text-xs bg-primary text-on-primary font-bold">{{ p }}</span>
+      {% elif p <= 3 or p >= total_pages - 1 or (p >= page - 1 and p <= page + 1) %}
+      <a href="/?page={{ p }}" class="px-3 py-1.5 rounded-lg text-xs bg-surface-container hover:bg-surface-container-high text-on-surface-variant transition-colors">{{ p }}</a>
+      {% elif p == 4 or p == total_pages - 2 %}
+      <span class="px-2 py-1.5 text-xs text-on-surface-variant/50">...</span>
+      {% endif %}
+    {% endfor %}
+    {% if page < total_pages %}
+    <a href="/?page={{ page + 1 }}" class="px-3 py-1.5 rounded-lg text-xs bg-surface-container hover:bg-surface-container-high text-on-surface-variant transition-colors">Next</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
