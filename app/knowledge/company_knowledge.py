@@ -104,3 +104,12 @@ class CompanyKnowledgeService:
             )[:3],
         )
 
+    def build_intake_brief(self) -> dict[str, Any]:
+        """Return company-facing instructions for the intake chatbot."""
+        return {
+            "company_id": self.company_id,
+            "company_profile": getattr(self._pack, "company_profile", {}),
+            "policy_candidates": self._pack.policy_snippets[:3],
+            "routing_candidates": self._pack.routing_matrix,
+            "severity_rubric": self._pack.severity_rubric[:4],
+        }
