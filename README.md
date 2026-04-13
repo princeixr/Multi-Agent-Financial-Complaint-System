@@ -157,7 +157,8 @@ docker compose up db -d
 ```
 for **deployment on server** you have to starts both db + app in detached mode so do below :
 ```bash
-sudo docker-compose up --build -d
+sudo docker compose up --build -d
+sudo docker compose logs -f app
 ```
 
 
