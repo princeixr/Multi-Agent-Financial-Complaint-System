@@ -60,7 +60,7 @@ def init_db() -> None:
     # tables. Since this project doesn't ship with Alembic migrations,
     # we do safe "add column if missing" for the known schema upgrades.
     with engine.connect() as conn:
-        columns_to_ensure: list[tuple[str, str]] = [
+        complaint_case_columns: list[tuple[str, str]] = [
             ("external_schema_json", "TEXT"),
             ("operational_mapping_json", "TEXT"),
             ("evidence_trace_json", "TEXT"),

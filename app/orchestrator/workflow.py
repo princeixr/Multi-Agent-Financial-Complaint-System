@@ -24,6 +24,7 @@ from app.agents.risk import run_risk_assessment
 from app.agents.root_cause import run_root_cause_hypothesis
 from app.agents.routing import run_routing
 from app.agents.supervisor import run_supervisor
+from app.integrations.jira_client import create_complaint_ticket
 from app.observability.context import ActiveRun, reset_active_run, set_active_run, set_trace_id
 from app.observability.events import log_workflow_event
 from app.observability.instrumentation import wrap_node, wrap_supervisor_node
@@ -244,8 +245,8 @@ def routing_node(state: WorkflowState) -> WorkflowState:
 
     destination = run_routing(
         case=case,
-        classification=state["classification"],
-        risk=state["risk_assessment"],
+        classification=state.get("classification"),
+        risk=state.get("risk_assessment"),
         root_cause_hypothesis=state.get("root_cause_hypothesis"),
         review_decision=state.get("review", {}).get("decision", "approve"),
         company_context=company_context,
@@ -258,7 +259,65 @@ def routing_node(state: WorkflowState) -> WorkflowState:
     completed = list(state.get("completed_steps", []))
     completed.append("route")
 
-    return {**state, "case": case, "routed_to": destination, "completed_steps": completed}
+    # ── Jira integration ────────────────────────────────────────────────────
+    jira_ticket: dict = {}
+    try:
+        classification = state.get("classification")
+        risk = state.get("risk_assessment")
+        resolution = state.get("resolution")
+
+        product_category = (
+            classification.product_category.value
+            if classification and hasattr(classification, "product_category")
+            else None
+        )
+        risk_level = (
+            risk.risk_level.value
+            if risk and hasattr(risk, "risk_level")
+            else None
+        )
+        resolution_summary = (
+            getattr(resolution, "recommended_action", None)
+            or getattr(resolution, "summary", None)
+            if resolution
+            else None
+        )
+
+        jira_ticket = create_complaint_ticket(
+            case_id=case.id,
+            team=destination,
+            product_category=product_category,
+            risk_level=risk_level,
+            channel=case.channel.value if case.channel else None,
+            consumer_narrative=case.consumer_narrative,
+            resolution_summary=str(resolution_summary) if resolution_summary else None,
+            company=case.company,
+            state=case.state,
+        )
+        case.jira_issue_key = jira_ticket.get("key")
+        case.jira_issue_url = jira_ticket.get("url")
+        logger.info(
+            "Jira ticket %s created for case %s → team %s",
+            jira_ticket.get("key"),
+            case.id,
+            destination,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Jira ticket creation failed for case %s (team=%s): %s",
+            case.id,
+            destination,
+            exc,
+        )
+    # ────────────────────────────────────────────────────────────────────────
+
+    return {
+        **state,
+        "case": case,
+        "routed_to": destination,
+        "completed_steps": completed,
+        "jira_ticket": jira_ticket,
+    }
 
 
 # ── Build the agentic graph ─────────────────────────────────────────────────

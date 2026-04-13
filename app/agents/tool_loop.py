@@ -21,6 +21,16 @@ logger = logging.getLogger(__name__)
 MAX_TOOL_ROUNDS = 5
 
 
+def _evidence_flags(tools_called: set[str]) -> dict[str, bool]:
+    """Convert the set of invoked tool names into an audit flag dict.
+
+    Returns a mapping of ``{tool_name: True}`` for every tool that was called
+    at least once during the agent loop.  Used by callers that pass
+    ``return_evidence=True`` to build an :class:`~app.schemas.evidence.EvidenceTrace`.
+    """
+    return {name: True for name in tools_called}
+
+
 def run_agent_with_tools(
     llm: ChatOpenAI,
     system_prompt: str,
@@ -101,7 +111,10 @@ def run_agent_with_tools(
     logger.warning("Agent exhausted %d tool rounds, forcing final response", max_rounds)
     final = llm.invoke(messages)  # no tools bound — forces text response
     try:
-        return parse_llm_json(final.content)
+        parsed = parse_llm_json(final.content)
+        if return_evidence:
+            return parsed, _evidence_flags(tools_called)
+        return parsed
     except Exception as first_error:
         logger.warning("Final response was not valid JSON; requesting JSON repair")
         repair_prompt = (
@@ -110,6 +123,10 @@ def run_agent_with_tools(
         )
         repaired = llm.invoke([*messages, AIMessage(content=final.content), HumanMessage(content=repair_prompt)])
         try:
-            return parse_llm_json(repaired.content)
+            parsed = parse_llm_json(repaired.content)
+            if return_evidence:
+                return parsed, _evidence_flags(tools_called)
+            return parsed
         except Exception:
             raise first_error
+

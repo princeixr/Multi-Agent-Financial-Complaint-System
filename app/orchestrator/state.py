@@ -48,6 +48,7 @@ class WorkflowState(TypedDict, total=False):
 
     # ── Routing ──────────────────────────────────────────────────────────
     routed_to: str
+    jira_ticket: dict  # {"key": "KAN-N", "url": "...", "team": "..."}
 
     # ── Root cause ────────────────────────────────────────────────────
     root_cause_hypothesis: RootCauseHypothesis

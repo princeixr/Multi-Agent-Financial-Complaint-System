@@ -151,5 +151,9 @@ class CaseRead(BaseModel):
     sla_class: Optional[str] = None
     root_cause_hypothesis: Optional[dict] = None
 
+    # Jira integration (populated after routing)
+    jira_issue_key: Optional[str] = None   # e.g. "KAN-7"
+    jira_issue_url: Optional[str] = None   # direct browser URL
+
     class Config:
         from_attributes = True
