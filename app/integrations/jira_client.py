@@ -157,7 +157,7 @@ def create_complaint_ticket(
 
     if atlassian_team_id:
         # customfield_10001 is the Atlassian Team field in this Jira project
-        fields["customfield_10001"] = atlassian_team_id
+        fields["customfield_10001"] = {"id": atlassian_team_id}
         logger.info("Assigning ticket to Atlassian team %s", atlassian_team_id)
 
     payload: dict[str, Any] = {"fields": fields}
