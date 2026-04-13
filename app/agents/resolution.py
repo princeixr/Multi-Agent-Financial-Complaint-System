@@ -79,6 +79,34 @@ def run_resolution(
     tools = [search_similar_resolutions, lookup_severity_rubric, lookup_routing_rules]
 
     result_data = run_agent_with_tools(llm, system_prompt, user_message, tools)
+
+    # ── Normalise recommended_action to a valid enum value ────────────────
+    # The LLM occasionally invents action names outside the schema enum.
+    # Map common hallucinations to the closest valid value to prevent a
+    # ValidationError from crashing the entire workflow.
+    _ACTION_ALIASES: dict[str, str] = {
+        "investigation": "correction",
+        "fraud_investigation": "correction",
+        "fraud_investigation_and_remediation": "correction",
+        "remediation": "correction",
+        "escalation": "referral",
+        "escalate": "referral",
+        "apology": "non_monetary_relief",
+        "refund": "monetary_relief",
+        "credit": "monetary_relief",
+        "fee_waiver": "monetary_relief",
+    }
+    _VALID_ACTIONS = {a.value for a in ResolutionRecommendation.model_fields["recommended_action"].annotation}
+    raw_action = result_data.get("recommended_action", "")
+    if raw_action not in _VALID_ACTIONS:
+        mapped = _ACTION_ALIASES.get(raw_action, "correction")
+        logger.warning(
+            "LLM returned invalid recommended_action %r; mapping to %r",
+            raw_action,
+            mapped,
+        )
+        result_data["recommended_action"] = mapped
+
     result = ResolutionRecommendation(**result_data)
 
     logger.info(
