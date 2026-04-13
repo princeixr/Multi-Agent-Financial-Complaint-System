@@ -135,6 +135,7 @@ class CaseRead(BaseModel):
     product: Optional[str] = None
     sub_product: Optional[str] = None
     company: Optional[str] = None
+    user_id: Optional[str] = None
     state: Optional[str] = None
     zip_code: Optional[str] = None
     channel: Channel = Channel.WEB

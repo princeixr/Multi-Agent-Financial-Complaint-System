@@ -9,6 +9,9 @@
     <div>
       <h1 class="text-4xl font-headline font-extrabold tracking-tight">Complaint Queue</h1>
       <p class="text-sm text-on-surface-variant mt-1">System-wide complaint monitoring with real-time AI classification and risk assessment triggers.</p>
+  {% if user and user.role != 'admin' and user.company %}
+  <p class="text-sm text-on-surface-variant mt-2">Showing complaint history for <strong>{{ user.company }}</strong>.</p>
+  {% endif %}
     </div>
     <div class="flex gap-4">
       <!-- KPI: Active Intake -->

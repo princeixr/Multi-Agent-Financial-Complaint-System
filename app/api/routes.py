@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import json
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.db.session import get_db
 from app.db.models import (
@@ -136,6 +136,7 @@ def _case_read_from_db(db_case: ComplaintCase) -> CaseRead:
         product=db_case.product,
         sub_product=db_case.sub_product,
         company=db_case.company,
+        user_id=db_case.user_id,
         state=db_case.state,
         zip_code=db_case.zip_code,
         channel=db_case.channel,
@@ -173,6 +174,7 @@ def _persist_case_and_outputs(case: CaseRead) -> None:
             product=case.product,
             sub_product=case.sub_product,
             company=case.company,
+            user_id=case.user_id,
             state=case.state,
             zip_code=case.zip_code,
             channel=case.channel.value,
@@ -363,7 +365,7 @@ async def intake_message(session_id: str, message: str) -> dict:
     response_model=CaseRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def finalize_intake(session_id: str) -> CaseRead:
+async def finalize_intake(request: Request, session_id: str) -> CaseRead:
     """Turn a completed intake session into a full complaint case."""
     if get_intake_session(session_id) is None:
         raise HTTPException(
@@ -374,6 +376,7 @@ async def finalize_intake(session_id: str) -> CaseRead:
         case_create, _state = finalize_intake_session(session_id)
         final_state = process_complaint(case_create.model_dump())
         case: CaseRead = final_state["case"]
+        case.user_id = request.cookies.get("user_id")
         _persist_case_and_outputs(case)
         return case
     except ValueError as exc:

@@ -15,7 +15,9 @@
           colors: {
             "on-error-container": "rgb(var(--on-error-container) / <alpha-value>)",
             "outline": "rgb(var(--outline) / <alpha-value>)",
+            "secondary-fixed": "rgb(var(--secondary-fixed) / <alpha-value>)",
             "secondary-fixed-dim": "rgb(var(--secondary-fixed-dim) / <alpha-value>)",
+            "on-secondary-fixed": "rgb(var(--on-secondary-fixed) / <alpha-value>)",
             "tertiary-container": "rgb(var(--tertiary-container) / <alpha-value>)",
             "surface-container-high": "rgb(var(--surface-container-high) / <alpha-value>)",
             "secondary-container": "rgb(var(--secondary-container) / <alpha-value>)",
@@ -27,6 +29,7 @@
             "inverse-surface": "rgb(var(--inverse-surface) / <alpha-value>)",
             "surface": "rgb(var(--surface) / <alpha-value>)",
             "surface-container": "rgb(var(--surface-container) / <alpha-value>)",
+            "surface-dim": "rgb(var(--surface-dim) / <alpha-value>)",
             "error": "rgb(var(--error) / <alpha-value>)",
             "secondary": "rgb(var(--secondary) / <alpha-value>)",
             "on-surface-variant": "rgb(var(--on-surface-variant) / <alpha-value>)",
@@ -49,10 +52,10 @@
             "on-error": "rgb(var(--on-error) / <alpha-value>)"
           },
           borderRadius: {
-            DEFAULT: "0.125rem",
-            lg: "0.25rem",
-            xl: "0.5rem",
-            full: "0.75rem"
+            DEFAULT: "1rem",
+            lg: "2rem",
+            xl: "3rem",
+            full: "9999px"
           },
           fontFamily: {
             headline: ["Manrope", "sans-serif"],
@@ -76,6 +79,7 @@
 </head>
 <body class="bg-background text-on-surface selection:bg-primary-container selection:text-on-primary-container">
 
+  {% if user %}
   <!-- Sidebar -->
   <nav class="fixed left-0 top-0 w-64 h-screen bg-surface-container-lowest flex flex-col z-[60]"
        style="box-shadow: 24px 0 48px -4px rgba(0,0,0,0.08);">
@@ -93,6 +97,7 @@
 
     <!-- Navigation -->
     <div class="flex-1 px-3 mt-2 space-y-1">
+      {% if user.role == 'admin' %}
       {% set nav_items = [
         ("dashboard", "/", "dashboard", "Dashboard"),
         ("lodge", "/complaints/new", "edit_square", "Lodge Complaint"),
@@ -100,6 +105,12 @@
         ("analytics", "/analytics", "analytics", "Analytics"),
         ("settings", "/settings", "settings", "Settings"),
       ] %}
+      {% else %}
+      {% set nav_items = [
+        ("dashboard", "/", "dashboard", "Dashboard"),
+        ("lodge", "/complaints/new", "edit_square", "Lodge Complaint"),
+      ] %}
+      {% endif %}
       {% for key, href, icon, label in nav_items %}
       <a href="{{ href }}"
          class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200
@@ -134,11 +145,19 @@
               title="Toggle theme">
         <span class="material-symbols-outlined text-xl">dark_mode</span>
       </button>
+      {% if user %}
+      <div class="flex items-center gap-3 px-3 py-2 rounded-xl bg-surface-container-high text-sm text-on-surface-variant">
+        <span class="font-semibold text-on-surface">{{ user.username | title }}</span>
+        <span class="text-on-surface-variant">/</span>
+        <a href="/logout" class="text-primary hover:underline">Logout</a>
+      </div>
+      {% endif %}
     </div>
   </header>
+  {% endif %}
 
   <!-- Main Content -->
-  <main class="ml-64 pt-16 min-h-screen">
+  <main class="{% if user %}ml-64 pt-16{% else %}pt-16{% endif %} min-h-screen">
     <div class="p-8">
       {% block content %}{% endblock %}
     </div>

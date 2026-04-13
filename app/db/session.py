@@ -72,6 +72,7 @@ def init_db() -> None:
             ("review_notes", "TEXT"),
             ("routed_to", "VARCHAR(120)"),
             ("classification_audit_json", "TEXT"),
+            ("user_id", "VARCHAR(64)"),
         ]
 
         classification_columns: list[tuple[str, str]] = [

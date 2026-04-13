@@ -148,6 +148,8 @@ Optional:
 - `OPENAI_CHAT_MODEL` / `DEEPSEEK_CHAT_MODEL` — override the default model
 - `EMBEDDING_PROVIDER=huggingface` (default) or `openai`
 - `HF_DEVICE=cpu` / `cuda` / `mps` — for local embedding model
+- `JIRA_BASE_URL`, `JIRA_USERNAME`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY` — enable Jira ticket creation via Jira MCP
+- `JIRA_ISSUE_TYPE`, `JIRA_ISSUE_PRIORITY` — optional Jira defaults
 - `LOG_LEVEL`, `SQL_ECHO`
 
 ### 4. Start PostgreSQL (pgvector)

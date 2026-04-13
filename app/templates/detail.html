@@ -5,7 +5,9 @@
 {% if case is none %}
 <div class="py-16 text-center">
   <span class="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">search_off</span>
-  <p class="text-lg font-headline font-bold text-on-surface-variant/60">Case not found</p>
+  <p class="text-lg font-headline font-bold text-on-surface-variant/60">
+    {% if access_denied %}Access denied{% else %}Case not found{% endif %}
+  </p>
   <a href="/" class="text-sm text-primary hover:underline mt-2 inline-block">Back to dashboard</a>
 </div>
 {% else %}

@@ -51,6 +51,7 @@ class ComplaintCase(Base):
     product = Column(String(120))
     sub_product = Column(String(120))
     company = Column(String(200))
+    user_id = Column(String(64), nullable=True, index=True)
     state = Column(String(2))
     zip_code = Column(String(5))
     channel = Column(String(20), default="web")
