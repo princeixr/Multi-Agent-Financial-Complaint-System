@@ -1,6 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Intake Chat{% endblock %}
 
+{% block head %}
+<style>
+#chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+#chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+#chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(27,55,94,0.2);
+  border-radius: 4px;
+}
+.dark #chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(173,199,255,0.2);
+}
+#chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(27,55,94,0.4);
+}
+.dark #chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(173,199,255,0.4);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8">
   <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Intake Portal</p>
@@ -49,9 +75,33 @@
       {% endif %}
     </div>
 
-    <div id="chat-messages"
-         class="flex-1 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface px-4 py-4 space-y-4"
-         style="min-height: 420px;">
+    <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant/20 bg-surface-container/50 px-4 py-3">
+      <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-on-surface select-none">
+        <input id="voice-mode" type="checkbox" class="rounded border-outline-variant text-primary focus:ring-primary/30" />
+        <span class="font-medium">Voice mode</span>
+      </label>
+      <button id="mic-btn" type="button" disabled
+              title="Pause after each phrase sends your message; agent replies; then speak again"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant/40 bg-surface px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-45">
+        <span class="material-symbols-outlined text-xl">mic</span>
+        Voice turns
+      </button>
+      <span id="speech-status" class="text-xs text-on-surface-variant" aria-live="polite"></span>
+      {% if intake_tts_enabled %}
+      <span class="text-xs text-on-surface-variant ml-auto max-w-[18rem] text-right" title="Agent replies are read aloud after each turn (same intake as chat).">
+        Replies: ElevenLabs TTS · Mic: browser speech-to-text
+      </span>
+      {% else %}
+      <span class="text-xs text-on-surface-variant ml-auto max-w-[14rem] text-right">
+        Spoken replies: set <code class="text-[10px]">ELEVENLABS_API_KEY</code> + <code class="text-[10px]">ELEVENLABS_VOICE_ID</code>
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="rounded-xl border border-outline-variant/20 bg-surface overflow-hidden" style="height: 420px; flex-shrink: 0;">
+      <div id="chat-messages"
+           class="overflow-y-auto h-full px-4 py-4 space-y-4">
+      </div>
     </div>
 
     <div class="mt-4 flex items-end gap-3">

@@ -95,21 +95,167 @@
 <!-- Single fixed tooltip -->
 <div id="trace-tooltip"></div>
 
-{% if run is none %}
+<!-- ═══ SEARCH BAR ═══ -->
+<div class="mb-8">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Admin · Observability</p>
+      <h1 class="text-3xl font-headline font-extrabold tracking-tight">Execution Trace</h1>
+    </div>
+  </div>
+  <form action="/trace/search" method="get" class="flex items-center gap-3" autocomplete="off">
+    <div class="relative flex-1 max-w-lg" id="search-wrap">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-lg pointer-events-none">search</span>
+      <input type="text"
+             id="case-search"
+             name="case_id"
+             value="{{ current_case_id if current_case_id is defined and current_case_id else '' }}"
+             placeholder="Search by case ID (e.g. 7e2a67ea...)"
+             class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+             autocomplete="off"/>
+
+      <!-- Dropdown -->
+      <div id="search-dropdown"
+           class="hidden absolute left-0 right-0 top-[calc(100%+6px)] z-50 rounded-xl border border-outline-variant/20 bg-surface shadow-xl overflow-hidden">
+        <div id="search-results"></div>
+      </div>
+    </div>
+    <button type="submit"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-all">
+      <span class="material-symbols-outlined text-lg">account_tree</span>
+      Find Trace
+    </button>
+    <a href="/trace/latest"
+       class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-sm hover:bg-surface-container-high transition-colors">
+      <span class="material-symbols-outlined text-lg">history</span>
+      Latest
+    </a>
+  </form>
+
+  {% if search_error is defined and search_error %}
+  <div class="mt-3 flex items-center gap-2 px-4 py-3 rounded-xl border border-error/20 bg-error-container/10 text-sm text-error max-w-lg">
+    <span class="material-symbols-outlined text-lg shrink-0">error</span>
+    {{ search_error }}
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.suggestion-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(195,198,213,0.12);
+  transition: background 0.1s;
+  gap: 10px;
+}
+.suggestion-row:last-child { border-bottom: none; }
+.suggestion-row:hover,
+.suggestion-row.active { background: rgba(27,55,94,0.07); }
+.dark .suggestion-row:hover,
+.dark .suggestion-row.active { background: rgba(173,199,255,0.07); }
+</style>
+
+<script>
+(function () {
+  const input    = document.getElementById('case-search');
+  const dropdown = document.getElementById('search-dropdown');
+  const results  = document.getElementById('search-results');
+  if (!input) return;
+
+  let timer = null;
+  let active = -1;
+  let items  = [];
+
+  const sev = s => ({ critical:'#ba1a1a', high:'rgba(186,26,26,0.7)' }[s] || '#737784');
+  const stBg = s => ({ completed:'rgba(0,62,63,0.1)', failed:'rgba(186,26,26,0.1)', escalated:'rgba(186,26,26,0.1)' }[s] || 'rgba(107,70,193,0.1)');
+  const stCl = s => ({ completed:'#003e3f', failed:'#ba1a1a', escalated:'#ba1a1a' }[s] || '#6b46c1');
+
+  function render(data) {
+    items  = data;
+    active = -1;
+    if (!data.length) { dropdown.classList.add('hidden'); return; }
+
+    results.innerHTML = data.map((r, i) => `
+      <div class="suggestion-row" data-i="${i}">
+        <div style="min-width:0;">
+          <div style="font-family:monospace;font-size:12px;font-weight:700;color:#1b375e;" class="trace-accent">#${r.case_id}</div>
+          <div style="font-size:10px;color:#737784;margin-top:1px;">${r.started_at}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+          ${r.final_severity ? `<span style="font-size:9px;font-weight:700;text-transform:uppercase;color:${sev(r.final_severity)}">${r.final_severity}</span>` : ''}
+          <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:${stBg(r.run_status)};color:${stCl(r.run_status)}">
+            ${r.run_status.replace(/_/g,' ')}
+          </span>
+        </div>
+      </div>`).join('');
+
+    results.querySelectorAll('.suggestion-row').forEach(el => {
+      el.addEventListener('mousedown', e => { e.preventDefault(); go(+el.dataset.i); });
+    });
+    dropdown.classList.remove('hidden');
+  }
+
+  function setActive(i) {
+    results.querySelectorAll('.suggestion-row').forEach((el, j) => el.classList.toggle('active', j === i));
+    active = i;
+  }
+
+  function go(i) {
+    const r = items[i];
+    if (!r) return;
+    input.value = r.case_id;
+    dropdown.classList.add('hidden');
+    window.location.href = `/trace/${r.run_id}`;
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim().replace(/^#/, '');
+    if (!q) { dropdown.classList.add('hidden'); return; }
+    timer = setTimeout(async () => {
+      try {
+        const res  = await fetch(`/trace/suggestions?q=${encodeURIComponent(q)}`);
+        render(await res.json());
+      } catch { dropdown.classList.add('hidden'); }
+    }, 180);
+  });
+
+  input.addEventListener('keydown', e => {
+    const rows = results.querySelectorAll('.suggestion-row');
+    if (e.key === 'ArrowDown')  { e.preventDefault(); setActive(Math.min(active + 1, rows.length - 1)); }
+    else if (e.key === 'ArrowUp')    { e.preventDefault(); setActive(Math.max(active - 1, 0)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); go(active); }
+    else if (e.key === 'Escape') dropdown.classList.add('hidden');
+  });
+
+  document.addEventListener('mousedown', e => {
+    if (!document.getElementById('search-wrap').contains(e.target))
+      dropdown.classList.add('hidden');
+  });
+
+  // Strip leading # before form submits
+  input.closest('form').addEventListener('submit', () => {
+    input.value = input.value.trim().replace(/^#/, '');
+  });
+})();
+</script>
+
+{% if run is none and (search_error is not defined or not search_error) %}
 <div class="py-16 text-center">
   <span class="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">account_tree</span>
+  <p class="text-lg font-headline font-bold text-on-surface-variant/60">No trace loaded</p>
+  <p class="text-sm text-on-surface-variant/40 mt-1">Search by case ID above or view the latest trace.</p>
+</div>
+{% elif run is none %}
+<div class="py-16 text-center">
+  <span class="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">search_off</span>
   <p class="text-lg font-headline font-bold text-on-surface-variant/60">Trace not found</p>
-  <a href="/" class="text-sm text-primary hover:underline mt-2 inline-block">Back to dashboard</a>
+  <p class="text-sm text-on-surface-variant/40 mt-1">Try a different case ID or check the dashboard.</p>
 </div>
 {% else %}
-
-<!-- Back nav -->
-<div class="mb-6">
-  <a href="/" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
-    <span class="material-symbols-outlined text-lg">arrow_back</span>
-    Back to dashboard
-  </a>
-</div>
 
 <!-- Header -->
 <div class="flex items-start justify-between mb-8">
@@ -576,4 +722,144 @@
   });
 })();
 </script>
+
+<script>
+(function () {
+  const input      = document.getElementById('case-search');
+  const dropdown   = document.getElementById('search-dropdown');
+  const results    = document.getElementById('search-results');
+  if (!input) return;
+
+  const isDark = () => document.documentElement.classList.contains('dark');
+
+  let debounceTimer = null;
+  let currentFocus  = -1;
+  let items         = [];
+
+  function severityColor(s) {
+    if (!s) return '#737784';
+    if (s === 'critical') return '#ba1a1a';
+    if (s === 'high')     return 'rgba(186,26,26,0.7)';
+    if (s === 'low')      return '#003e3f';
+    return '#1b375e';
+  }
+
+  function statusBg(s) {
+    const m = { completed:'rgba(0,62,63,0.1)', partially_completed:'rgba(107,70,193,0.1)', escalated:'rgba(186,26,26,0.1)', failed:'rgba(186,26,26,0.1)' };
+    return m[s] || 'rgba(115,119,132,0.1)';
+  }
+
+  function statusColor(s) {
+    const m = { completed:'#003e3f', partially_completed:'#6b46c1', escalated:'#ba1a1a', failed:'#ba1a1a' };
+    return m[s] || '#737784';
+  }
+
+  function accentColor() { return isDark() ? '#adc7f7' : '#1b375e'; }
+  function textColor()   { return isDark() ? '#dae2f3' : '#191c1e'; }
+  function mutedColor()  { return isDark() ? '#8d9db5' : '#737784'; }
+  function hoverBg()     { return isDark() ? '#1c2a3a' : '#f2f4f6'; }
+  function divColor()    { return isDark() ? 'rgba(173,199,255,0.06)' : 'rgba(0,0,0,0.05)'; }
+
+  function applyDropdownTheme() {
+    dropdown.style.background   = isDark() ? '#0f1e2e' : '#ffffff';
+    dropdown.style.borderColor  = isDark() ? 'rgba(173,199,255,0.15)' : 'rgba(195,198,213,0.4)';
+  }
+
+  function renderItems(data) {
+    items = data;
+    currentFocus = -1;
+    applyDropdownTheme();
+
+    if (!data.length) {
+      results.innerHTML = `<div style="padding:14px 16px;font-size:12px;color:${mutedColor()};text-align:center;">No matches found</div>`;
+      dropdown.classList.remove('hidden');
+      return;
+    }
+
+    results.innerHTML = data.map((r, i) => `
+      <div class="ac-item" data-run="${r.run_id}" data-idx="${i}"
+           style="display:flex;align-items:center;justify-content:space-between;
+                  padding:10px 14px;cursor:pointer;
+                  border-bottom:1px solid ${divColor()};
+                  transition:background 0.1s;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <span class="ac-mono" style="font-family:monospace;font-size:12px;font-weight:700;color:${accentColor()};flex-shrink:0;">#${r.case_id.slice(0,12)}</span>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;
+                         background:${statusBg(r.status)};color:${statusColor(r.status)};text-transform:uppercase;">
+              ${r.status.replace(/_/g,' ')}
+            </span>
+            ${r.severity ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;
+                         background:rgba(186,26,26,0.06);color:${severityColor(r.severity)};text-transform:uppercase;">
+              ${r.severity}</span>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px;">
+          ${r.route ? `<div style="font-size:10px;color:${accentColor()};font-weight:600;">→ ${r.route.replace(/_/g,' ')}</div>` : ''}
+          <div style="font-size:9px;color:${mutedColor()};">${r.started_at}</div>
+        </div>
+      </div>
+    `).join('');
+
+    document.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mouseenter', () => { el.style.background = hoverBg(); });
+      el.addEventListener('mouseleave', () => { el.style.background = 'transparent'; });
+      el.addEventListener('mousedown',  (e) => { e.preventDefault(); window.location.href = `/trace/${el.dataset.run}`; });
+    });
+
+    dropdown.classList.remove('hidden');
+  }
+
+  function highlightItem(idx) {
+    document.querySelectorAll('.ac-item').forEach((el, i) => {
+      el.style.background = i === idx ? hoverBg() : 'transparent';
+    });
+  }
+
+  function closeDropdown() { dropdown.classList.add('hidden'); currentFocus = -1; }
+
+  async function fetchMatches(q) {
+    if (q.length < 2) { closeDropdown(); return; }
+    try {
+      const res  = await fetch(`/trace/autocomplete?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      renderItems(data);
+    } catch(e) { closeDropdown(); }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim().replace(/^#/, '');
+    if (!q) { closeDropdown(); return; }
+    debounceTimer = setTimeout(() => fetchMatches(q), 200);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (dropdown.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      currentFocus = Math.min(currentFocus + 1, items.length - 1);
+      highlightItem(currentFocus);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      currentFocus = Math.max(currentFocus - 1, 0);
+      highlightItem(currentFocus);
+    } else if (e.key === 'Enter' && currentFocus >= 0) {
+      e.preventDefault();
+      window.location.href = `/trace/${items[currentFocus].run_id}`;
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+    }
+  });
+
+  input.addEventListener('focus', applyDropdownTheme);
+  document.addEventListener('mousedown', (e) => {
+    if (!document.getElementById('search-wrap').contains(e.target)) closeDropdown();
+  });
+  new MutationObserver(applyDropdownTheme).observe(
+    document.documentElement, { attributes: true, attributeFilter: ['class'] }
+  );
+})();
+</script>
+
 {% endblock %}

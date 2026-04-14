@@ -34,7 +34,7 @@ def build_case_summary(db_case: ComplaintCase) -> dict:
     risk = db_case.risk_assessment
 
     narrative = db_case.consumer_narrative or ""
-    subject = narrative[:80] + "..." if len(narrative) > 80 else narrative
+    subject = narrative[:200] + "..." if len(narrative) > 200 else narrative
 
     return {
         "id": db_case.id,

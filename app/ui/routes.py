@@ -269,9 +269,176 @@ async def latest_trace(request: Request):
             "step_count": 0,
             "active_nav": "trace",
             "user": user,
+            "search_error": "",
+            "current_case_id": "",
         })
 
     return RedirectResponse(url=f"/trace/{latest_run_id}", status_code=302)
+
+
+@router.get("/trace/search", include_in_schema=False)
+async def trace_search(request: Request, case_id: str = ""):
+    """Search for a trace by case ID and redirect to it."""
+    user = _get_current_user(request)
+    if user is None:
+        return _redirect_to_login()
+    if user["role"] != "admin":
+        return _redirect_to_dashboard()
+
+    case_id = case_id.strip().lstrip("#")
+
+    if not case_id:
+        return RedirectResponse(url="/trace/latest", status_code=302)
+
+    found_run_id = None
+
+    with get_db() as db:
+        # 1. Exact match on WorkflowRun.case_id
+        run = (
+            db.query(WorkflowRun)
+            .filter(WorkflowRun.case_id == case_id)
+            .order_by(WorkflowRun.started_at.desc())
+            .first()
+        )
+
+        # 2. Prefix match on WorkflowRun.case_id
+        if run is None:
+            run = (
+                db.query(WorkflowRun)
+                .filter(WorkflowRun.case_id.ilike(f"{case_id}%"))
+                .order_by(WorkflowRun.started_at.desc())
+                .first()
+            )
+
+        # 3. Match via ComplaintCase.id
+        if run is None:
+            case_row = (
+                db.query(ComplaintCase)
+                .filter(
+                    (ComplaintCase.id == case_id) |
+                    ComplaintCase.id.ilike(f"{case_id}%")
+                )
+                .first()
+            )
+            if case_row:
+                run = (
+                    db.query(WorkflowRun)
+                    .filter(WorkflowRun.case_id == case_row.id)
+                    .order_by(WorkflowRun.started_at.desc())
+                    .first()
+                )
+
+        # Extract run_id inside the session before it closes
+        if run is not None:
+            found_run_id = run.run_id
+
+    if found_run_id is None:
+        return templates.TemplateResponse(request, "trace.html", context={
+            "run": None,
+            "steps": [],
+            "total_latency": 0,
+            "step_count": 0,
+            "active_nav": "trace",
+            "user": user,
+            "search_error": f"No trace found for case ID: #{case_id}",
+            "current_case_id": case_id,
+        })
+
+    return RedirectResponse(url=f"/trace/{found_run_id}", status_code=302)
+
+
+@router.get("/trace/suggestions", include_in_schema=False)
+async def trace_suggestions(request: Request, q: str = ""):
+    """Return live case ID suggestions for the trace search bar."""
+    from fastapi.responses import JSONResponse
+    user = _get_current_user(request)
+    if user is None or user["role"] != "admin":
+        return JSONResponse(content=[])
+
+    q = q.strip().lstrip("#")
+    if not q:
+        return JSONResponse(content=[])
+
+    with get_db() as db:
+        # Search WorkflowRun.case_id directly
+        runs = (
+            db.query(WorkflowRun)
+            .filter(WorkflowRun.case_id.ilike(f"{q}%"))
+            .order_by(WorkflowRun.started_at.desc())
+            .limit(6)
+            .all()
+        )
+
+        # Also search via ComplaintCase.id if not enough results
+        if len(runs) < 6:
+            matched_case_ids = {r.case_id for r in runs if r.case_id}
+            cases = (
+                db.query(ComplaintCase)
+                .filter(
+                    ComplaintCase.id.ilike(f"{q}%"),
+                    ~ComplaintCase.id.in_(matched_case_ids)
+                )
+                .limit(6 - len(runs))
+                .all()
+            )
+            for c in cases:
+                extra_run = (
+                    db.query(WorkflowRun)
+                    .filter(WorkflowRun.case_id == c.id)
+                    .order_by(WorkflowRun.started_at.desc())
+                    .first()
+                )
+                if extra_run:
+                    runs.append(extra_run)
+
+        results = [
+            {
+                "case_id": r.case_id,
+                "run_id": r.run_id,
+                "run_status": r.run_status,
+                "started_at": r.started_at.strftime("%Y-%m-%d %H:%M") if r.started_at else "",
+                "final_severity": r.final_severity or "",
+            }
+            for r in runs if r.case_id
+        ]
+
+    return JSONResponse(content=results)
+
+
+@router.get("/trace/autocomplete", include_in_schema=False)
+async def trace_autocomplete(request: Request, q: str = ""):
+    """Return matching case IDs and run info for the live autocomplete dropdown."""
+    from fastapi.responses import JSONResponse
+
+    user = _get_current_user(request)
+    if user is None or user["role"] != "admin":
+        return JSONResponse([])
+
+    q = q.strip().lstrip("#")
+    if not q:
+        return JSONResponse([])
+
+    with get_db() as db:
+        runs = (
+            db.query(WorkflowRun)
+            .filter(WorkflowRun.case_id.startswith(q))
+            .order_by(WorkflowRun.started_at.desc())
+            .limit(8)
+            .all()
+        )
+        results = [
+            {
+                "run_id":     r.run_id,
+                "case_id":    r.case_id or "",
+                "status":     r.run_status or "",
+                "severity":   r.final_severity or "",
+                "route":      r.final_route or "",
+                "started_at": r.started_at.strftime("%Y-%m-%d %H:%M") if r.started_at else "",
+            }
+            for r in runs
+        ]
+
+    return JSONResponse(results)
 
 
 @router.get("/trace/{run_id}", include_in_schema=False)
@@ -293,7 +460,9 @@ async def supervisor_trace(request: Request, run_id: str):
         )
 
         run = None
+        current_case_id = ""
         if run_row is not None:
+            current_case_id = run_row.case_id or ""
             run = {
                 "run_id": run_row.run_id,
                 "run_status": run_row.run_status,
@@ -352,6 +521,7 @@ async def supervisor_trace(request: Request, run_id: str):
         "step_count": len(step_data),
         "active_nav": "trace",
         "user": user,
+        "current_case_id": current_case_id,
     })
 
 
