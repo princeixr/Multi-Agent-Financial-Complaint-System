@@ -8,15 +8,15 @@ Specialists are equipped with **LangChain tools** for autonomous RAG retrieval (
 
 ```
                     ┌──────────┐
-                    │  intake   │  (deterministic: PII redaction, validation)
+                    │  intake  │  (deterministic: PII redaction, validation)
                     └────┬─────┘
                          ▼
                ┌─────────────────┐
           ┌───►│   supervisor    │◄───┐
           │    │  (LLM decides)  │    │
-          │    └──┬──┬──┬──┬──┬─┘    │
-          │       │  │  │  │  │      │
-     ┌────┘  ┌────┘  │  │  │  └───┐  └────┐
+          │    └──┬──┬──┬──┬──┬─┘     │
+          │       │  │  │  │  │       │
+     ┌────┘  ┌────┘  │  │  │  └───┐   └───┐
      ▼       ▼       ▼  ▼  ▼      ▼       ▼
  classify  risk  root_cause resolve compliance review  route→END
      │       │       │  │  │      │       │
@@ -153,8 +153,13 @@ Optional:
 ### 4. Start PostgreSQL (pgvector)
 
 ```bash
-docker compose up -d
+docker compose up db -d
 ```
+for **deployment on server** you have to starts both db + app in detached mode so do below :
+```bash
+sudo docker-compose up --build -d
+```
+
 
 Wait until the database is healthy (`docker compose ps`). Default connection:
 

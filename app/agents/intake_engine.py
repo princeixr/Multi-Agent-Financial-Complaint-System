@@ -12,11 +12,14 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 from uuid import uuid4
 
 from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
+from app.db.models import IntakeSessionRecord
+from app.db.session import SessionLocal
+from app.knowledge.company_knowledge import CompanyKnowledgeService
 from app.schemas.case import CaseCreate
 from app.schemas.intake import (
     InformationSufficiency,
@@ -24,6 +27,7 @@ from app.schemas.intake import (
     IntakeSessionState,
     RecommendedHandoff,
 )
+from app.utils.pii import redact_pii
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +35,18 @@ _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "intake_chat
 
 # In-memory session store for the demo. For production, back this with Redis or DB.
 _SESSIONS: Dict[str, IntakeSessionState] = {}
+_MIN_DESCRIPTION_CHARS = 10
+_DB_SESSION_STORE_AVAILABLE = True
+_HUMAN_ESCALATION_REASONS = {
+    "fraud_suspected",
+    "identity_theft",
+    "threat_of_harm",
+    "self_harm",
+    "elder_abuse",
+    "legal_threat",
+    "regulatory_threat",
+}
+_COMPANY_KNOWLEDGE_BY_ID: dict[str, CompanyKnowledgeService] = {}
 
 
 def _truthy_env(name: str) -> bool:
@@ -66,14 +82,241 @@ def _load_prompt() -> str:
     return _PROMPT_PATH.read_text()
 
 
-def _compute_sufficiency(packet: IntakePacket) -> IntakePacket:
-    """Deterministic sufficiency rules aligned with CaseCreate validation.
+def _company_knowledge_singleton(company_id: str | None) -> CompanyKnowledgeService:
+    resolved = company_id or os.getenv("COMPANY_ID", "mock_bank")
+    if resolved not in _COMPANY_KNOWLEDGE_BY_ID:
+        _COMPANY_KNOWLEDGE_BY_ID[resolved] = CompanyKnowledgeService(company_id=resolved)
+    return _COMPANY_KNOWLEDGE_BY_ID[resolved]
 
-    For MVP we keep this intentionally simple:
-      * require a financial complaint intent
-      * require narrative_for_case length >= 10 characters
+
+def _build_company_intake_context(company_id: str | None) -> dict[str, Any]:
+    try:
+        return _company_knowledge_singleton(company_id).build_intake_brief()
+    except Exception:
+        logger.warning("Unable to load company intake context for %s", company_id or "default")
+        return {
+            "company_id": company_id or "mock_bank",
+            "company_profile": {},
+            "policy_candidates": [],
+            "routing_candidates": {},
+            "severity_rubric": [],
+        }
+
+
+def _render_company_intake_context(company_id: str | None) -> str:
+    brief = _build_company_intake_context(company_id)
+    profile = brief.get("company_profile") or {}
+    display_name = profile.get("display_name") or "the bank"
+    supported_products = ", ".join(profile.get("supported_products") or []) or "financial products"
+    banned_phrases = ", ".join(profile.get("intake_do_not_say") or [])
+    routing_guidance = "\n".join(f"- {item}" for item in profile.get("intake_routing_guidance") or [])
+    policy_lines = "\n".join(
+        f"- {item.get('policy_id')}: {item.get('description')}"
+        for item in brief.get("policy_candidates") or []
+    )
+    return (
+        "## Company Intake Context\n"
+        f"- Company ID: {brief.get('company_id')}\n"
+        f"- Company name: {display_name}\n"
+        f"- Institution type: {profile.get('customer_identity') or 'financial institution'}\n"
+        f"- Supported products: {supported_products}\n"
+        f"- Role: {profile.get('intake_operator_style') or 'You are the internal complaints intake operator.'}\n"
+        f"- Never redirect the user away from the bank by saying phrases like: {banned_phrases or 'N/A'}\n"
+        f"- Safe reference guidance: {profile.get('safe_reference_guidance') or 'Ask only for safe non-sensitive locators.'}\n"
+        "### Internal routing guidance\n"
+        f"{routing_guidance or '- Escalate urgent harm or fraud internally.'}\n"
+        "### Relevant policy priorities\n"
+        f"{policy_lines or '- Document the complaint clearly and route it to the right internal team.'}\n"
+    )
+
+
+def _build_intake_system_prompt(company_id: str | None) -> str:
+    return f"{_load_prompt().rstrip()}\n\n{_render_company_intake_context(company_id)}"
+
+
+def _persist_session_state(state: IntakeSessionState) -> None:
+    global _DB_SESSION_STORE_AVAILABLE
+    _SESSIONS[state.session_id] = state
+    if not _DB_SESSION_STORE_AVAILABLE:
+        return
+    try:
+        session = SessionLocal()
+        try:
+            record = session.get(IntakeSessionRecord, state.session_id) or IntakeSessionRecord(
+                session_id=state.session_id
+            )
+            record.channel = state.channel
+            record.company_id = state.company_id
+            record.turn_index = state.turn_index
+            record.packet_json = state.packet.model_dump_json()
+            record.last_agent_message = state.last_agent_message
+            record.last_user_message = state.last_user_message
+            record.conversation_history_json = json.dumps(state.conversation_history, ensure_ascii=False)
+            record.completed = state.completed
+            record.handoff_triggered = state.handoff_triggered
+            session.merge(record)
+            session.commit()
+        finally:
+            session.close()
+    except Exception:
+        _DB_SESSION_STORE_AVAILABLE = False
+        logger.warning("Unable to persist intake session; using in-memory fallback.")
+
+
+def _load_session_state(session_id: str) -> IntakeSessionState | None:
+    global _DB_SESSION_STORE_AVAILABLE
+    cached = _SESSIONS.get(session_id)
+    if cached is not None:
+        return cached
+    if not _DB_SESSION_STORE_AVAILABLE:
+        return None
+
+    try:
+        session = SessionLocal()
+        try:
+            record = session.get(IntakeSessionRecord, session_id)
+        finally:
+            session.close()
+    except Exception:
+        _DB_SESSION_STORE_AVAILABLE = False
+        logger.warning("Unable to load intake session from database; using in-memory fallback.")
+        return None
+
+    if record is None:
+        return None
+
+    state = IntakeSessionState(
+        session_id=record.session_id,
+        channel=record.channel,
+        company_id=record.company_id,
+        turn_index=record.turn_index,
+        packet=IntakePacket.model_validate_json(record.packet_json),
+        last_agent_message=record.last_agent_message or "",
+        last_user_message=record.last_user_message or "",
+        conversation_history=json.loads(record.conversation_history_json or "[]"),
+        completed=bool(record.completed),
+        handoff_triggered=bool(record.handoff_triggered),
+    )
+    _SESSIONS[session_id] = state
+    return state
+
+
+def _clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return redact_pii(str(value)).strip()
+
+
+def _coerce_optional_llm_bool(value: Any) -> bool | None:
+    """Map messy LLM output to bool | None. Models sometimes put digits or text in bool slots."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value != 0
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if not s:
+            return None
+        if s in ("true", "yes", "1", "y", "on"):
+            return True
+        if s in ("false", "no", "0", "n", "off"):
+            return False
+        # Common mistake: last-4 / reference stuffed into a boolean field — treat as "reference exists"
+        if s.isdigit():
+            return True
+    return None
+
+
+def _coerce_required_llm_bool(value: Any, *, default: bool) -> bool:
+    coerced = _coerce_optional_llm_bool(value)
+    return default if coerced is None else coerced
+
+
+def _sanitize_packet_data(packet_data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize and redact free-text fields coming back from the model."""
+    text_fields = {
+        "customer_summary",
+        "product_hint",
+        "issue_hint",
+        "sub_issue_hint",
+        "date_of_incident",
+        "amount",
+        "currency",
+        "merchant_or_counterparty",
+        "desired_resolution",
+        "narrative_for_case",
+    }
+    cleaned = dict(packet_data)
+    for key in text_fields:
+        if key in cleaned and cleaned[key] is not None:
+            cleaned[key] = _clean_text(cleaned[key]) or None
+
+    for key in ("customer_summary", "narrative_for_case"):
+        if cleaned.get(key) is None:
+            cleaned[key] = ""
+
+    for key in ("escalation_reasons", "missing_fields"):
+        if key in cleaned and cleaned[key] is not None:
+            raw_value = cleaned[key]
+            if isinstance(raw_value, (list, tuple)):
+                cleaned[key] = [str(item).strip() for item in raw_value if str(item).strip()]
+            else:
+                single_value = str(raw_value).strip()
+                cleaned[key] = [single_value] if single_value else []
+
+    for key in ("is_financial_complaint", "supported_by_platform"):
+        if key in cleaned and cleaned[key] is not None:
+            cleaned[key] = _coerce_required_llm_bool(cleaned[key], default=True)
+
+    for key in (
+        "account_or_reference_available",
+        "has_supporting_docs",
+        "prior_contact_attempted",
+    ):
+        if key in cleaned and cleaned[key] is not None:
+            cleaned[key] = _coerce_optional_llm_bool(cleaned[key])
+
+    return cleaned
+
+
+def _build_issue_label(packet: IntakePacket) -> str | None:
+    parts = [packet.issue_hint, packet.sub_issue_hint]
+    label = " / ".join(part.strip() for part in parts if part and part.strip())
+    return label or None
+
+
+def _channel_to_case_channel(channel: str) -> str:
+    return "phone" if channel == "voice" else "web"
+
+
+def _needs_human_escalation(packet: IntakePacket) -> bool:
+    reasons = {reason.strip().lower() for reason in packet.escalation_reasons if reason.strip()}
+    return (
+        packet.intent.value == "fraud_report"
+        or packet.urgency == "high"
+        or bool(reasons & _HUMAN_ESCALATION_REASONS)
+    )
+
+
+def _compute_sufficiency(packet: IntakePacket) -> IntakePacket:
+    """Deterministic intake completion rules for interactive chat/voice intake.
+
+    Chat intake is intentionally stricter than bare ``CaseCreate`` validation:
+      * unsupported / non-financial requests must not be filed as complaints
+      * the operator should capture a usable complaint description
+      * the operator should identify the product or issue before handoff
     """
     missing: list[str] = []
+    narrative = (packet.narrative_for_case or "").strip()
+    summary = (packet.customer_summary or "").strip()
+    has_description = len(narrative) >= _MIN_DESCRIPTION_CHARS or len(summary) >= _MIN_DESCRIPTION_CHARS
+    has_product_or_issue = bool(
+        (packet.product_hint and packet.product_hint.strip())
+        or (packet.issue_hint and packet.issue_hint.strip())
+        or (packet.sub_issue_hint and packet.sub_issue_hint.strip())
+    )
 
     if not packet.is_financial_complaint or not packet.supported_by_platform:
         packet.information_sufficiency = InformationSufficiency.INSUFFICIENT
@@ -81,41 +324,50 @@ def _compute_sufficiency(packet: IntakePacket) -> IntakePacket:
         packet.missing_fields = ["financial_domain"]
         return packet
 
-    if len((packet.narrative_for_case or "").strip()) < 10:
-        missing.append("narrative_for_case")
+    if not has_description:
+        missing.append("complaint_description")
+    if not has_product_or_issue:
+        missing.append("product_or_issue")
 
     if missing:
-        packet.information_sufficiency = InformationSufficiency.INSUFFICIENT
+        packet.information_sufficiency = (
+            InformationSufficiency.PARTIAL
+            if has_description or has_product_or_issue
+            else InformationSufficiency.INSUFFICIENT
+        )
     else:
         packet.information_sufficiency = InformationSufficiency.SUFFICIENT
 
-    # For now we always recommend supervisor when sufficient.
-    packet.recommended_handoff = (
-        RecommendedHandoff.SUPERVISOR
-        if packet.information_sufficiency is InformationSufficiency.SUFFICIENT
-        else RecommendedHandoff.SUPERVISOR
-    )
+    if _needs_human_escalation(packet):
+        packet.recommended_handoff = RecommendedHandoff.HUMAN_ESCALATION
+    else:
+        packet.recommended_handoff = RecommendedHandoff.SUPERVISOR
     packet.missing_fields = missing
     return packet
 
 
 def _build_case_payload(packet: IntakePacket, company_id: str | None) -> dict:
     """Construct a CaseCreate-compatible payload from an IntakePacket."""
-    narrative = (packet.narrative_for_case or "").strip()
+    narrative = (packet.narrative_for_case or "").strip() or (packet.customer_summary or "").strip()
     data = {
         "company_id": company_id,
         "consumer_narrative": narrative or None,
-        # product/sub_product are hints only; classification will do proper mapping.
+        # Product hints are useful to downstream classifiers; issue hints stay in external labels.
         "product": packet.product_hint,
-        "sub_product": packet.sub_issue_hint or packet.issue_hint,
+        "sub_product": None,
         "company": None,
         "state": None,
         "zip_code": None,
-        "channel": "web",
+        "channel": _channel_to_case_channel(packet.channel),
         "submitted_at": None,
         "external_product_category": packet.product_hint,
-        "external_issue_type": packet.issue_hint,
+        "external_issue_type": _build_issue_label(packet),
         "requested_resolution": packet.desired_resolution,
+        "intake_intent": packet.intent.value,
+        "intake_urgency": packet.urgency,
+        "intake_recommended_handoff": packet.recommended_handoff.value,
+        "intake_escalation_reasons": packet.escalation_reasons,
+        "intake_customer_summary": packet.customer_summary or None,
         # CFPB portal fields are optional in this path.
         "cfpb_product": None,
         "cfpb_sub_product": None,
@@ -123,6 +375,18 @@ def _build_case_payload(packet: IntakePacket, company_id: str | None) -> dict:
         "cfpb_sub_issue": None,
     }
     return data
+
+
+def _submission_offer_message(packet: IntakePacket) -> str:
+    product = (packet.product_hint or "this issue").strip()
+    issue = _build_issue_label(packet) or "the complaint"
+    urgency_note = ""
+    if packet.recommended_handoff is RecommendedHandoff.HUMAN_ESCALATION:
+        urgency_note = " I’m also marking it for urgent internal review."
+    return (
+        f"I have the minimum information needed to file your complaint about {product} and {issue}."
+        f"{urgency_note} If you want, you can submit it now, or continue sharing more details or documents first."
+    )
 
 
 def start_intake_session(channel: str = "web_chat", company_id: str | None = None) -> Tuple[str, IntakeSessionState]:
@@ -137,75 +401,99 @@ def start_intake_session(channel: str = "web_chat", company_id: str | None = Non
         turn_index=0,
         last_agent_message="",
         last_user_message="",
+        conversation_history=[],
         completed=False,
         handoff_triggered=False,
     )
     greeting = (
-        "Thanks for reaching out. I'm the virtual intake assistant for complaints. "
-        "Please briefly describe what happened and which financial product or service it relates to."
+        "Thanks for reaching out. I'm here to help document your complaint. "
+        "Please briefly describe what happened and which financial product or service it relates to. "
+        "Do not include full card numbers, bank account numbers, or your Social Security number."
     )
     state.last_agent_message = greeting
-    _SESSIONS[session_id] = state
+    state.conversation_history.append({"role": "assistant", "message": greeting})
+    _persist_session_state(state)
     return session_id, state
 
 
 def get_intake_session(session_id: str) -> IntakeSessionState | None:
-    return _SESSIONS.get(session_id)
+    return _load_session_state(session_id)
 
 
 def process_intake_message(session_id: str, user_message: str, model_name: str | None = None) -> IntakeSessionState:
     """Process one user turn and update the intake session state."""
-    state = _SESSIONS.get(session_id)
+    state = _load_session_state(session_id)
     if state is None:
         raise KeyError(f"Unknown intake session_id={session_id}")
 
+    was_completed = state.completed
+    sanitized_user_message = _clean_text(user_message)
     state.turn_index += 1
-    state.last_user_message = user_message
+    state.last_user_message = sanitized_user_message
+    state.conversation_history.append({"role": "user", "message": sanitized_user_message})
 
-    system_prompt = _load_prompt()
-    llm = create_llm(model_name=model_name, temperature=0.0)
+    try:
+        system_prompt = _build_intake_system_prompt(state.company_id)
+        llm = create_llm(model_name=model_name, temperature=0.0)
 
-    # We send the current packet and latest user message; the model returns
-    # assistant_message + a full updated intake_packet object.
-    payload = {
-        "current_intake_packet": json.loads(state.packet.model_dump_json()),
-        "last_user_message": user_message,
-    }
-    user_content = json.dumps(payload, ensure_ascii=False)
+        # Send a transcript window plus the structured packet so the model can
+        # preserve user corrections and maintain continuity across turns.
+        payload = {
+            "current_intake_packet": json.loads(state.packet.model_dump_json()),
+            "conversation_history": state.conversation_history[-6:],
+            "last_user_message": sanitized_user_message,
+        }
+        user_content = json.dumps(payload, ensure_ascii=False)
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content},
-    ]
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
 
-    # Privacy default: do not emit intake turns to LangSmith unless explicitly enabled.
-    if _trace_intake_to_langsmith_enabled():
-        response = llm.invoke(messages)
-    else:
-        with _temp_disable_langsmith_tracing():
+        # Privacy default: do not emit intake turns to LangSmith unless explicitly enabled.
+        if _trace_intake_to_langsmith_enabled():
             response = llm.invoke(messages)
-    raw = getattr(response, "content", None)
-    data = parse_llm_json(raw)
+        else:
+            with _temp_disable_langsmith_tracing():
+                response = llm.invoke(messages)
+        raw = getattr(response, "content", None)
+        data = parse_llm_json(raw)
 
-    assistant_message = data.get("assistant_message") or ""
-    packet_data = data.get("intake_packet") or {}
+        if set(data.keys()) != {"assistant_message", "intake_packet"}:
+            raise ValueError("LLM response must contain exactly assistant_message and intake_packet.")
+        packet_data = data.get("intake_packet")
+        if not isinstance(packet_data, dict):
+            raise ValueError("LLM response intake_packet must be an object.")
 
-    # Merge: start from previous packet and overlay fields from model.
-    merged = state.packet.model_copy(update=packet_data)
-    merged = _compute_sufficiency(merged)
+        merged_data = state.packet.model_dump(mode="python")
+        merged_data.update(_sanitize_packet_data(packet_data))
+        merged = IntakePacket.model_validate(merged_data)
+        merged = _compute_sufficiency(merged)
+        merged.intake_case = _build_case_payload(merged, state.company_id)
 
-    # Build CaseCreate-compatible snapshot if sufficient (may still be useful when partial).
-    merged.intake_case = _build_case_payload(merged, state.company_id)
+        assistant_message = _clean_text(data.get("assistant_message")) or (
+            "Please tell me what happened, which product or service it relates to, "
+            "and any date or amount involved if you know it."
+        )
 
-    state.packet = merged
-    state.last_agent_message = assistant_message
+        state.packet = merged
+        state.completed = merged.information_sufficiency is InformationSufficiency.SUFFICIENT
+        if state.completed and not was_completed:
+            state.last_agent_message = _submission_offer_message(merged)
+        else:
+            state.last_agent_message = assistant_message
+    except Exception:
+        logger.exception("Intake turn processing failed; returning safe fallback")
+        state.packet = _compute_sufficiency(state.packet)
+        state.packet.intake_case = _build_case_payload(state.packet, state.company_id)
+        state.completed = state.packet.information_sufficiency is InformationSufficiency.SUFFICIENT
+        state.last_agent_message = (
+            "I'm sorry, I couldn't process that cleanly. Please restate what happened, "
+            "which financial product or service it relates to, and any date or amount if known."
+        )
 
-    # Mark completed when we have sufficient information; handoff itself is triggered
-    # by the API layer when it calls finalize_intake_session.
-    if merged.information_sufficiency is InformationSufficiency.SUFFICIENT:
-        state.completed = True
-
-    _SESSIONS[session_id] = state
+    state.conversation_history.append({"role": "assistant", "message": state.last_agent_message})
+    _persist_session_state(state)
     return state
 
 
@@ -215,7 +503,7 @@ def finalize_intake_session(session_id: str) -> Tuple[CaseCreate, IntakeSessionS
     Raises:
         ValueError if information is not sufficient.
     """
-    state = _SESSIONS.get(session_id)
+    state = _load_session_state(session_id)
     if state is None:
         raise KeyError(f"Unknown intake session_id={session_id}")
 
@@ -231,6 +519,5 @@ def finalize_intake_session(session_id: str) -> Tuple[CaseCreate, IntakeSessionS
     state.packet.intake_case = payload
     state.completed = True
     state.handoff_triggered = True
-    _SESSIONS[session_id] = state
+    _persist_session_state(state)
     return case_create, state
-

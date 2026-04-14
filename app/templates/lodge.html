@@ -48,11 +48,18 @@
       <div id="chat-error"
            class="hidden flex-1 rounded-xl border border-error/30 bg-error-container/70 px-4 py-3 text-sm text-on-error-container">
       </div>
-      <button id="finalize-btn"
-              class="hidden inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tertiary text-on-tertiary text-sm font-semibold hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-        <span class="material-symbols-outlined text-lg">verified</span>
-        Submit Complaint
-      </button>
+      <div id="decision-actions" class="hidden items-center gap-2">
+        <button id="finalize-btn"
+                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tertiary text-on-tertiary text-sm font-semibold hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-lg">verified</span>
+          Submit
+        </button>
+        <button id="not-yet-btn"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container text-on-surface text-sm font-semibold hover:bg-surface-container-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-lg">edit_note</span>
+          Not Yet
+        </button>
+      </div>
     </div>
   </section>
 
@@ -70,6 +77,7 @@
         <li>Include product + what went wrong.</li>
         <li>Add date and any amounts if you know them.</li>
         <li>Mention what you want as a resolution.</li>
+        <li>Do not include full card, bank account, or Social Security numbers.</li>
       </ul>
     </div>
   </aside>
@@ -84,12 +92,28 @@
     const sendBtn = document.getElementById('send-btn');
     const errorEl = document.getElementById('chat-error');
     const finalizeBtn = document.getElementById('finalize-btn');
+    const notYetBtn = document.getElementById('not-yet-btn');
+    const decisionActionsEl = document.getElementById('decision-actions');
     const newSessionBtn = document.getElementById('new-session-btn');
     const packetStatusEl = document.getElementById('packet-status');
 
     let sessionId = null;
     let lastCompleted = false;
     let busy = false;
+
+    const hideDecisionActions = () => {
+      decisionActionsEl.classList.add('hidden');
+      decisionActionsEl.classList.remove('flex');
+      finalizeBtn.disabled = true;
+      notYetBtn.disabled = true;
+    };
+
+    const showDecisionActions = () => {
+      decisionActionsEl.classList.remove('hidden');
+      decisionActionsEl.classList.add('flex');
+      finalizeBtn.disabled = false;
+      notYetBtn.disabled = false;
+    };
 
     const setError = (msg) => {
       if (!msg) {
@@ -110,11 +134,17 @@
       const intent = packet.intent || 'unknown';
       const suff = packet.information_sufficiency || 'insufficient';
       const handoff = packet.recommended_handoff || 'supervisor';
+      const urgency = packet.urgency || 'medium';
+      const product = packet.product_hint || 'not captured yet';
+      const issue = packet.sub_issue_hint || packet.issue_hint || 'not captured yet';
       const missing = packet.missing_fields && packet.missing_fields.length ? packet.missing_fields : [];
 
       packetStatusEl.innerHTML = `
         <div><span class="font-semibold">Intent:</span> ${intent}</div>
         <div><span class="font-semibold">Sufficiency:</span> ${suff}</div>
+        <div><span class="font-semibold">Urgency:</span> ${urgency}</div>
+        <div><span class="font-semibold">Product:</span> ${product}</div>
+        <div><span class="font-semibold">Issue:</span> ${issue}</div>
         <div><span class="font-semibold">Recommended handoff:</span> ${handoff}</div>
         <div><span class="font-semibold">Missing fields:</span> ${missing.length ? missing.join(', ') : 'none'}</div>
       `;
@@ -139,8 +169,7 @@
 
     const startSession = async () => {
       setError(null);
-      finalizeBtn.classList.add('hidden');
-      finalizeBtn.disabled = true;
+      hideDecisionActions();
       lastCompleted = false;
       sessionId = null;
       messagesEl.innerHTML = '';
@@ -194,17 +223,15 @@
         lastCompleted = !!data.completed;
 
         if (lastCompleted) {
-          finalizeBtn.classList.remove('hidden');
-          finalizeBtn.disabled = false;
+          showDecisionActions();
         } else {
-          finalizeBtn.classList.add('hidden');
-          finalizeBtn.disabled = true;
+          hideDecisionActions();
         }
       } catch (e) {
         setError(e && e.message ? e.message : 'Intake failed. Please try again.');
       } finally {
         busy = false;
-        if (sessionId && !lastCompleted) sendBtn.disabled = false;
+        if (sessionId) sendBtn.disabled = false;
       }
     };
 
@@ -227,14 +254,27 @@
       } catch (e) {
         setError(e && e.message ? e.message : 'Submit failed.');
         finalizeBtn.disabled = false;
+        notYetBtn.disabled = false;
       } finally {
         busy = false;
       }
     };
 
+    const notYet = () => {
+      if (busy) return;
+      hideDecisionActions();
+      lastCompleted = false;
+      appendMessage(
+        'agent',
+        'Understood. You can keep adding any details or supporting information you want included before filing.'
+      );
+      if (sessionId) sendBtn.disabled = false;
+    };
+
     newSessionBtn.addEventListener('click', () => startSession());
     sendBtn.addEventListener('click', sendMessage);
     finalizeBtn.addEventListener('click', finalize);
+    notYetBtn.addEventListener('click', notYet);
 
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {

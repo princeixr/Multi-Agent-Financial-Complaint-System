@@ -5,6 +5,36 @@ from __future__ import annotations
 
 MOCK_COMPANY_ID = "mock_bank"
 
+COMPANY_PROFILE = {
+    "display_name": "Mock Bank",
+    "customer_identity": "digital bank",
+    "supported_products": [
+        "checking accounts",
+        "savings accounts",
+        "debit cards",
+        "credit cards",
+        "money transfers",
+    ],
+    "intake_operator_style": (
+        "Speak as Mock Bank's complaints intake team. You are the bank representative "
+        "documenting and triaging complaints for internal handling."
+    ),
+    "intake_do_not_say": [
+        "contact your bank",
+        "call your bank",
+        "reach out to your bank separately",
+    ],
+    "intake_routing_guidance": [
+        "If the user reports fraud, a stolen card, unauthorized transactions, or severe account access issues, treat it as urgent.",
+        "Acknowledge that the bank is taking the report now instead of redirecting the customer elsewhere.",
+        "You may tell the user you are recording the complaint and flagging it for the right internal team.",
+    ],
+    "safe_reference_guidance": (
+        "If you need an account reference, ask only for a safe locator such as last 4 digits, transaction date, "
+        "merchant name, or a case/reference number."
+    ),
+}
+
 # Operational taxonomy for the demo company.
 # The goal is to map external complaint concepts into internal operational labels.
 #
@@ -231,9 +261,9 @@ ROOT_CAUSE_CONTROLS = [
 
 class MockCompanyPack:
     company_id: str = MOCK_COMPANY_ID
+    company_profile: dict = COMPANY_PROFILE
     operational_taxonomy: dict = OPERATIONAL_TAXONOMY
     severity_rubric: list = SEVERITY_RUBRIC
     policy_snippets: list = POLICY_SNIPPETS
     routing_matrix: dict = ROUTING_MATRIX
     root_cause_controls: list = ROOT_CAUSE_CONTROLS
-

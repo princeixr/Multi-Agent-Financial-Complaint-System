@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class IntakeIntent(str, Enum):
@@ -33,6 +33,8 @@ class IntakePacket(BaseModel):
 
     This is intentionally channel-agnostic so both chat and voice can share it.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     # High-level intent / eligibility
     intent: IntakeIntent = IntakeIntent.COMPLAINT
@@ -83,6 +85,8 @@ class IntakePacket(BaseModel):
 class IntakeSessionState(BaseModel):
     """State for a single multi-turn intake conversation."""
 
+    model_config = ConfigDict(extra="forbid")
+
     session_id: str
     channel: Literal["web_chat", "voice", "unknown"] = "web_chat"
     company_id: Optional[str] = None
@@ -92,7 +96,7 @@ class IntakeSessionState(BaseModel):
 
     last_agent_message: str = ""
     last_user_message: str = ""
+    conversation_history: list[dict[str, str]] = Field(default_factory=list)
 
     completed: bool = False
     handoff_triggered: bool = False
-
