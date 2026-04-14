@@ -42,6 +42,20 @@ class Base(DeclarativeBase):
 # ═════════════════════════════════════════════════════════════════════════════
 
 
+class UserAccount(Base):
+    """Stores registered user accounts backed by PostgreSQL."""
+
+    __tablename__ = "user_accounts"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    email = Column(String(254), nullable=False, unique=True, index=True)
+    password = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False, default="user")
+    company = Column(String(200), nullable=True)
+    user_id = Column(String(64), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ComplaintCase(Base):
     __tablename__ = "complaint_cases"
 

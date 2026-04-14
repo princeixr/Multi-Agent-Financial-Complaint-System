@@ -25,6 +25,7 @@ dependencies = [
     "opentelemetry-sdk>=1.20,<2",
     "langsmith>=0.1,<0.4",
     "pandas>=3.0.2",
+    "python-multipart>=0.0.26",
 ]
 
 [project.optional-dependencies]

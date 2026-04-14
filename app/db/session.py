@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 
 from dotenv import load_dotenv
 
@@ -108,6 +109,84 @@ def init_db() -> None:
                     )
                 )
         conn.commit()
+
+    # Seed default user accounts (idempotent — skips if already present)
+    _seed_default_users()
+
+
+def _seed_default_users() -> None:
+    """Insert the default admin, user, and team accounts if they don't exist."""
+    from app.db.models import UserAccount  # local import to avoid circular deps
+
+    # (email_local, team_assignment_value)
+    # team_assignment_value must match exactly what routing.py / mock_company_pack writes
+    # into complaint_cases.team_assignment.
+    _TEAMS: list[tuple[str, str]] = [
+        ("executivecomplaints",  "executive_complaints_team"),
+        ("payments",             "payments_team"),
+        ("debtcollection",       "debt_collection_team"),
+        ("managementescalation", "management_escalation_team"),
+        ("generalcomplaints",    "general_complaints_team"),
+        ("studentloanservicing", "student_loan_servicing_team"),
+        ("fraudaccessops",       "fraud_and_access_ops_team"),
+        ("consumerlending",      "consumer_lending_team"),
+        ("autoloan",             "auto_loan_team"),
+        ("creditreporting",      "credit_reporting_team"),
+        ("mortgageservicing",    "mortgage_servicing_team"),
+        ("creditcard",           "credit_card_operations_team"),
+    ]
+
+    seeds = [
+        {
+            "email": "admin@triage.ai",
+            "password": "admin123",
+            "role": "admin",
+            "company": None,
+            "user_id": "admin-001",
+        },
+        {
+            "email": "user@triage.ai",
+            "password": "user123",
+            "role": "user",
+            "company": "Mock Bank",
+            "user_id": "user-001",
+        },
+        *[
+            {
+                "email": f"{local}@triage.ai",
+                "password": f"{local}123",
+                "role": "team",
+                "company": team_assignment_value,
+                "user_id": f"team-{local}",
+            }
+            for local, team_assignment_value in _TEAMS
+        ],
+    ]
+
+    session = SessionLocal()
+    try:
+        for s in seeds:
+            exists = session.query(UserAccount).filter(UserAccount.email == s["email"]).first()
+            if not exists:
+                session.add(UserAccount(
+                    id=uuid.uuid4().hex,
+                    email=s["email"],
+                    password=s["password"],
+                    role=s["role"],
+                    company=s["company"],
+                    user_id=s["user_id"],
+                ))
+                logger.info("Seeded default user: %s", s["email"])
+            elif exists.company != s["company"]:
+                # Fix stale team_assignment values from previous seeds
+                exists.company = s["company"]
+                logger.info("Updated company/team for %s → %s", s["email"], s["company"])
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 @contextmanager

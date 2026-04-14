@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Response, Form, status
@@ -16,6 +17,7 @@ from app.db.models import (
     ClassificationRecord,
     RiskRecord,
     ResolutionRecord,
+    UserAccount,
     WorkflowRun,
     WorkflowStep,
 )
@@ -33,29 +35,23 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter(tags=["ui"])
 
-USER_STORE: dict[str, dict[str, str | None]] = {
-    "admin": {"password": "admin123", "role": "admin", "company": None, "user_id": "admin-001"},
-    "user": {"password": "user123", "role": "user", "company": "Mock Bank", "user_id": "user-001"},
-    "rahul": {"password": "rahul123", "role": "user", "company": "Mock Bank", "user_id": "user-002"}
-}
-
 
 def _get_current_user(request: Request) -> dict[str, str | None] | None:
-    username = request.cookies.get("username")
+    email = request.cookies.get("username")
     role = request.cookies.get("role")
-    if not username or not role:
+    if not email or not role:
         return None
 
-    user = USER_STORE.get(username)
-    if user is None or user.get("role") != role:
-        return None
-
-    return {
-        "username": username,
-        "role": role,
-        "company": user.get("company"),
-        "user_id": user.get("user_id"),
-    }
+    with get_db() as db:
+        user = db.query(UserAccount).filter(UserAccount.email == email).first()
+        if user is None or user.role != role:
+            return None
+        return {
+            "username": email,
+            "role": user.role,
+            "company": user.company,
+            "user_id": user.user_id,
+        }
 
 
 def _redirect_to_login() -> RedirectResponse:
@@ -67,13 +63,14 @@ def _redirect_to_dashboard() -> RedirectResponse:
 
 
 @router.get("/login", include_in_schema=False)
-async def login_form(request: Request):
+async def login_form(request: Request, created: str = ""):
     user = _get_current_user(request)
     if user is not None:
         return _redirect_to_dashboard()
 
     return templates.TemplateResponse(request, "login.html", context={
         "error": None,
+        "success": "Account created! You can now sign in." if created == "1" else None,
         "active_nav": None,
         "user": None,
     })
@@ -82,24 +79,67 @@ async def login_form(request: Request):
 @router.post("/login", include_in_schema=False)
 async def login_submit(
     request: Request,
-    username: str = Form(...),
+    email: str = Form(...),
     password: str = Form(...),
 ):
-    user = USER_STORE.get(username)
-    if not user or user["password"] != password:
-        return templates.TemplateResponse(request, "login.html", context={
-            "error": "Invalid username or password.",
-            "active_nav": None,
-            "user": None,
-        })
+    with get_db() as db:
+        user = db.query(UserAccount).filter(UserAccount.email == email).first()
+        if user is None:
+            return templates.TemplateResponse(request, "login.html", context={
+                "error": "No account found with that email.",
+                "success": None,
+                "active_nav": None,
+                "user": None,
+            })
+        if user.password != password:
+            return templates.TemplateResponse(request, "login.html", context={
+                "error": "Wrong Password",
+                "success": None,
+                "active_nav": None,
+                "user": None,
+            })
+        u_email = user.email
+        u_role = user.role
+        u_user_id = user.user_id
+        u_company = user.company
 
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    response.set_cookie("username", username, httponly=True)
-    response.set_cookie("role", user["role"], httponly=True)
-    response.set_cookie("user_id", user["user_id"], httponly=True)
-    if user.get("company"):
-        response.set_cookie("company", user["company"], httponly=True)
+    response.set_cookie("username", u_email, httponly=True)
+    response.set_cookie("role", u_role, httponly=True)
+    response.set_cookie("user_id", u_user_id, httponly=True)
+    if u_company:
+        response.set_cookie("company", u_company, httponly=True)
     return response
+
+
+@router.post("/signup", include_in_schema=False)
+async def signup_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+):
+    with get_db() as db:
+        existing = db.query(UserAccount).filter(UserAccount.email == email).first()
+        if existing:
+            return templates.TemplateResponse(request, "login.html", context={
+                "error": "An account with this email already exists.",
+                "success": None,
+                "active_nav": None,
+                "user": None,
+                "show_signup": True,
+            })
+
+        new_user = UserAccount(
+            id=uuid.uuid4().hex,
+            email=email,
+            password=password,
+            role="user",
+            company=None,
+            user_id=uuid.uuid4().hex,
+        )
+        db.add(new_user)
+
+    return RedirectResponse(url="/login?created=1", status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/logout", include_in_schema=False)
@@ -126,7 +166,9 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
 
     with get_db() as db:
         query = db.query(ComplaintCase).order_by(ComplaintCase.created_at.desc())
-        if user["role"] != "admin":
+        if user["role"] == "team":
+            query = query.filter(ComplaintCase.team_assignment == user.get("company"))
+        elif user["role"] != "admin":
             query = query.filter(ComplaintCase.user_id == user.get("user_id"))
 
         total = query.count()
@@ -135,10 +177,14 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
 
         # KPI counts
         critical_query = db.query(RiskRecord).filter(RiskRecord.risk_level == "critical")
-        if user["role"] != "admin":
-            critical_query = critical_query.join(ComplaintCase, ComplaintCase.id == RiskRecord.case_id).filter(
-                ComplaintCase.user_id == user.get("user_id")
-            )
+        if user["role"] == "team":
+            critical_query = critical_query.join(
+                ComplaintCase, ComplaintCase.id == RiskRecord.case_id
+            ).filter(ComplaintCase.team_assignment == user.get("company"))
+        elif user["role"] != "admin":
+            critical_query = critical_query.join(
+                ComplaintCase, ComplaintCase.id == RiskRecord.case_id
+            ).filter(ComplaintCase.user_id == user.get("user_id"))
         critical_count = critical_query.count()
 
     total_pages = max(1, (total + limit - 1) // limit)
@@ -192,7 +238,11 @@ async def complaint_detail(request: Request, case_id: str):
                 "user": user,
             })
 
-        if user["role"] != "admin" and db_case.user_id != user.get("user_id"):
+        if (
+            user["role"] == "team" and db_case.team_assignment != user.get("company")
+        ) or (
+            user["role"] == "user" and db_case.user_id != user.get("user_id")
+        ):
             return templates.TemplateResponse(request, "detail.html", context={
                 "case": None,
                 "active_nav": "dashboard",
