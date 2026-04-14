@@ -1,4 +1,4 @@
-"""Structured artifacts for CFPB-aware classification (Assess → Plan → Verify)."""
+"""Structured artifacts for complaint classification (Assess → Plan → Verify)."""
 
 from __future__ import annotations
 
@@ -86,6 +86,10 @@ class ClassificationAuditPackage(BaseModel):
     reason_codes: list[str] = Field(default_factory=list)
     assess_skipped_llm: bool = False
     plan_skipped_llm: bool = False
+    execute_skipped_llm: bool = Field(
+        default=False,
+        description="True when classification was mapped without the Execute LLM/tools.",
+    )
 
     # v2: dual-hypothesis reconciliation (documented; not run in v1)
     v2_dual_hypothesis_eligible: bool = Field(

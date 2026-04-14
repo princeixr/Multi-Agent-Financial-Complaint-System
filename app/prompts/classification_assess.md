@@ -1,6 +1,6 @@
 # Classification — Assess phase (structured situation only)
 
-You are assessing a **consumer complaint intake** before classification. The data may come from the **CFPB portal**: product, sub-product, issue, and sub-issue are **consumer selections from fixed menus** (noisy priors—they can be wrong). The **consumer complaint narrative** is separate free text and may be **missing** or short.
+You are assessing a **consumer complaint intake** before classification. The structured fields may come from complaint forms, portals, partner feeds, imports, or internal operators. Product, sub-product, issue, and sub-issue fields are useful priors, but they may be incomplete, outdated, or wrong. The **consumer complaint narrative** is separate free text and may be **missing** or short.
 
 ## Deterministic signals (facts — do not contradict)
 

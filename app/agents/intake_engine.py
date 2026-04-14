@@ -46,7 +46,14 @@ _HUMAN_ESCALATION_REASONS = {
     "legal_threat",
     "regulatory_threat",
 }
-_COMPANY_KNOWLEDGE_BY_ID: dict[str, CompanyKnowledgeService] = {}
+_company_knowledge: CompanyKnowledgeService | None = None
+
+
+def _company_knowledge_service() -> CompanyKnowledgeService:
+    global _company_knowledge
+    if _company_knowledge is None:
+        _company_knowledge = CompanyKnowledgeService()
+    return _company_knowledge
 
 
 def _truthy_env(name: str) -> bool:
@@ -82,20 +89,12 @@ def _load_prompt() -> str:
     return _PROMPT_PATH.read_text()
 
 
-def _company_knowledge_singleton(company_id: str | None) -> CompanyKnowledgeService:
-    resolved = company_id or os.getenv("COMPANY_ID", "mock_bank")
-    if resolved not in _COMPANY_KNOWLEDGE_BY_ID:
-        _COMPANY_KNOWLEDGE_BY_ID[resolved] = CompanyKnowledgeService(company_id=resolved)
-    return _COMPANY_KNOWLEDGE_BY_ID[resolved]
-
-
-def _build_company_intake_context(company_id: str | None) -> dict[str, Any]:
+def _build_company_intake_context() -> dict[str, Any]:
     try:
-        return _company_knowledge_singleton(company_id).build_intake_brief()
+        return _company_knowledge_service().build_intake_brief()
     except Exception:
-        logger.warning("Unable to load company intake context for %s", company_id or "default")
+        logger.warning("Unable to load company intake context", exc_info=True)
         return {
-            "company_id": company_id or "mock_bank",
             "company_profile": {},
             "policy_candidates": [],
             "routing_candidates": {},
@@ -103,8 +102,8 @@ def _build_company_intake_context(company_id: str | None) -> dict[str, Any]:
         }
 
 
-def _render_company_intake_context(company_id: str | None) -> str:
-    brief = _build_company_intake_context(company_id)
+def _render_company_intake_context() -> str:
+    brief = _build_company_intake_context()
     profile = brief.get("company_profile") or {}
     display_name = profile.get("display_name") or "the bank"
     supported_products = ", ".join(profile.get("supported_products") or []) or "financial products"
@@ -116,7 +115,6 @@ def _render_company_intake_context(company_id: str | None) -> str:
     )
     return (
         "## Company Intake Context\n"
-        f"- Company ID: {brief.get('company_id')}\n"
         f"- Company name: {display_name}\n"
         f"- Institution type: {profile.get('customer_identity') or 'financial institution'}\n"
         f"- Supported products: {supported_products}\n"
@@ -130,8 +128,8 @@ def _render_company_intake_context(company_id: str | None) -> str:
     )
 
 
-def _build_intake_system_prompt(company_id: str | None) -> str:
-    return f"{_load_prompt().rstrip()}\n\n{_render_company_intake_context(company_id)}"
+def _build_intake_system_prompt() -> str:
+    return f"{_load_prompt().rstrip()}\n\n{_render_company_intake_context()}"
 
 
 def _persist_session_state(state: IntakeSessionState) -> None:
@@ -146,7 +144,7 @@ def _persist_session_state(state: IntakeSessionState) -> None:
                 session_id=state.session_id
             )
             record.channel = state.channel
-            record.company_id = state.company_id
+            record.company_id = None
             record.turn_index = state.turn_index
             record.packet_json = state.packet.model_dump_json()
             record.last_agent_message = state.last_agent_message
@@ -188,7 +186,6 @@ def _load_session_state(session_id: str) -> IntakeSessionState | None:
     state = IntakeSessionState(
         session_id=record.session_id,
         channel=record.channel,
-        company_id=record.company_id,
         turn_index=record.turn_index,
         packet=IntakePacket.model_validate_json(record.packet_json),
         last_agent_message=record.last_agent_message or "",
@@ -346,11 +343,10 @@ def _compute_sufficiency(packet: IntakePacket) -> IntakePacket:
     return packet
 
 
-def _build_case_payload(packet: IntakePacket, company_id: str | None) -> dict:
+def _build_case_payload(packet: IntakePacket) -> dict:
     """Construct a CaseCreate-compatible payload from an IntakePacket."""
     narrative = (packet.narrative_for_case or "").strip() or (packet.customer_summary or "").strip()
     data = {
-        "company_id": company_id,
         "consumer_narrative": narrative or None,
         # Product hints are useful to downstream classifiers; issue hints stay in external labels.
         "product": packet.product_hint,
@@ -389,14 +385,13 @@ def _submission_offer_message(packet: IntakePacket) -> str:
     )
 
 
-def start_intake_session(channel: str = "web_chat", company_id: str | None = None) -> Tuple[str, IntakeSessionState]:
+def start_intake_session(channel: str = "web_chat") -> Tuple[str, IntakeSessionState]:
     """Create a new intake session with an initial greeting from the agent."""
     session_id = uuid4().hex
-    packet = IntakePacket(channel=channel if channel in ("web_chat", "voice") else "web_chat", company_id=company_id)
+    packet = IntakePacket(channel=channel if channel in ("web_chat", "voice") else "web_chat")
     state = IntakeSessionState(
         session_id=session_id,
         channel=packet.channel,
-        company_id=company_id,
         packet=packet,
         turn_index=0,
         last_agent_message="",
@@ -433,7 +428,7 @@ def process_intake_message(session_id: str, user_message: str, model_name: str |
     state.conversation_history.append({"role": "user", "message": sanitized_user_message})
 
     try:
-        system_prompt = _build_intake_system_prompt(state.company_id)
+        system_prompt = _build_intake_system_prompt()
         llm = create_llm(model_name=model_name, temperature=0.0)
 
         # Send a transcript window plus the structured packet so the model can
@@ -469,7 +464,7 @@ def process_intake_message(session_id: str, user_message: str, model_name: str |
         merged_data.update(_sanitize_packet_data(packet_data))
         merged = IntakePacket.model_validate(merged_data)
         merged = _compute_sufficiency(merged)
-        merged.intake_case = _build_case_payload(merged, state.company_id)
+        merged.intake_case = _build_case_payload(merged)
 
         assistant_message = _clean_text(data.get("assistant_message")) or (
             "Please tell me what happened, which product or service it relates to, "
@@ -485,7 +480,7 @@ def process_intake_message(session_id: str, user_message: str, model_name: str |
     except Exception:
         logger.exception("Intake turn processing failed; returning safe fallback")
         state.packet = _compute_sufficiency(state.packet)
-        state.packet.intake_case = _build_case_payload(state.packet, state.company_id)
+        state.packet.intake_case = _build_case_payload(state.packet)
         state.completed = state.packet.information_sufficiency is InformationSufficiency.SUFFICIENT
         state.last_agent_message = (
             "I'm sorry, I couldn't process that cleanly. Please restate what happened, "
@@ -514,7 +509,7 @@ def finalize_intake_session(session_id: str) -> Tuple[CaseCreate, IntakeSessionS
             f"Intake information is not sufficient to open a case; missing={packet.missing_fields}"
         )
 
-    payload = _build_case_payload(packet, state.company_id)
+    payload = _build_case_payload(packet)
     case_create = CaseCreate(**payload)
     state.packet.intake_case = payload
     state.completed = True

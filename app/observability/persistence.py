@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db.models import WorkflowRun, WorkflowStep
 from app.db.session import SessionLocal
 from app.observability.context import get_active_run
+from app.knowledge.mock_company_pack import deployment_label
 from app.observability.versions import (
     default_chat_model,
     knowledge_pack_version,
@@ -23,21 +24,21 @@ logger = logging.getLogger(__name__)
 
 def insert_workflow_run(
     run_id: str,
-    company_id: str,
     trace_id: str | None,
 ) -> bool:
     try:
         session = SessionLocal()
         try:
+            label = deployment_label()
             row = WorkflowRun(
                 run_id=run_id,
-                company_id=company_id,
+                company_id=label,
                 trace_id=trace_id,
                 started_at=datetime.utcnow(),
                 run_status="running",
                 workflow_version=workflow_version(),
                 prompt_version=prompt_bundle_version(),
-                knowledge_pack_version=knowledge_pack_version(company_id),
+                knowledge_pack_version=knowledge_pack_version(),
                 model_version=default_chat_model(),
             )
             session.add(row)

@@ -26,7 +26,7 @@ def plan_from_assessment(assessment: SituationAssessment) -> ClassificationPlan:
     cs = assessment.conflict_score
     weight = assessment.recommended_weighting
 
-    # High conflict / contradiction → narrative-led or heavy retrieval
+    # High conflict / contradiction → heavy retrieval
     if cons == Consistency.CONTRADICTION or cs >= 0.65:
         return ClassificationPlan(
             strategy=ClassificationStrategy.RETRIEVAL_DISAMBIGUATION,
@@ -35,7 +35,30 @@ def plan_from_assessment(assessment: SituationAssessment) -> ClassificationPlan:
             needs_human_review_hint=True,
         )
 
-    if cx == Complexity.MULTI_ISSUE or assessment.recommended_weighting == EvidenceWeighting.NARRATIVE:
+    # Straightforward / trivial cases MUST be checked before the generic
+    # "narrative weighting ⇒ retrieval" rule, otherwise Assess often labels
+    # weighting=narrative for every narrative and we never reach no-tool plans.
+    if cx == Complexity.STRAIGHTFORWARD:
+        return ClassificationPlan(
+            strategy=ClassificationStrategy.MAPPING_PLUS_NARRATIVE_CONFIRM,
+            tool_budget=0,
+            needs_retrieval=False,
+        )
+
+    if cx == Complexity.TRIVIAL and cons in (Consistency.UNKNOWN, Consistency.ALIGNED):
+        if weight == EvidenceWeighting.STRUCTURED:
+            return ClassificationPlan(
+                strategy=ClassificationStrategy.MAPPING_ONLY,
+                tool_budget=0,
+                needs_retrieval=False,
+            )
+        return ClassificationPlan(
+            strategy=ClassificationStrategy.MAPPING_PLUS_NARRATIVE_CONFIRM,
+            tool_budget=0,
+            needs_retrieval=False,
+        )
+
+    if cx == Complexity.MULTI_ISSUE:
         return ClassificationPlan(
             strategy=ClassificationStrategy.RETRIEVAL_DISAMBIGUATION,
             tool_budget=6,
@@ -51,24 +74,12 @@ def plan_from_assessment(assessment: SituationAssessment) -> ClassificationPlan:
             needs_human_review_hint=cs >= 0.5,
         )
 
-    if cx == Complexity.TRIVIAL and cons in (Consistency.UNKNOWN, Consistency.ALIGNED):
-        if weight == EvidenceWeighting.STRUCTURED:
-            return ClassificationPlan(
-                strategy=ClassificationStrategy.MAPPING_ONLY,
-                tool_budget=3,
-                needs_retrieval=True,
-            )
+    if assessment.recommended_weighting == EvidenceWeighting.NARRATIVE:
         return ClassificationPlan(
-            strategy=ClassificationStrategy.MAPPING_PLUS_NARRATIVE_CONFIRM,
-            tool_budget=4,
+            strategy=ClassificationStrategy.RETRIEVAL_DISAMBIGUATION,
+            tool_budget=6,
             needs_retrieval=True,
-        )
-
-    if cx == Complexity.STRAIGHTFORWARD:
-        return ClassificationPlan(
-            strategy=ClassificationStrategy.MAPPING_PLUS_NARRATIVE_CONFIRM,
-            tool_budget=4,
-            needs_retrieval=True,
+            needs_human_review_hint=cs >= 0.45,
         )
 
     if cons == Consistency.PARTIAL_CONFLICT:

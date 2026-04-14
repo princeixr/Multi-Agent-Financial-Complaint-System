@@ -1,4 +1,4 @@
-"""Deterministic signals for CFPB-aware classification Assess phase."""
+"""Deterministic signals for structured-intake classification Assess phase."""
 
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ def build_deterministic_signals(case_like: dict[str, Any]) -> dict[str, Any]:
     else:
         narrative_status = "present"
 
-    cfpb_field_count = sum(1 for p in [cfpb_p, cfpb_sp, cfpb_i, cfpb_si] if p)
-    structured_complete_cfpb = bool(cfpb_p and cfpb_i)
+    structured_field_count = sum(1 for p in [cfpb_p, cfpb_sp, cfpb_i, cfpb_si] if p)
+    structured_complete_core = bool(cfpb_p and cfpb_i)
 
     st_tokens = _tokens(structured_blob + " " + ext_issue)
     na_tokens = _tokens(narrative)
@@ -70,8 +70,8 @@ def build_deterministic_signals(case_like: dict[str, Any]) -> dict[str, Any]:
         "narrative_length": n_len,
         "narrative_rich": narrative_rich,
         "narrative_status": narrative_status,
-        "cfpb_field_count": cfpb_field_count,
-        "structured_complete_cfpb": structured_complete_cfpb,
+        "structured_field_count": structured_field_count,
+        "structured_complete_core": structured_complete_core,
         "structured_blob_preview": structured_blob[:400],
         "token_overlap_jaccard": round(jaccard, 4),
         "structured_narrative_tension": round(tension, 4),
@@ -81,11 +81,11 @@ def build_deterministic_signals(case_like: dict[str, Any]) -> dict[str, Any]:
 
 def should_skip_assess_llm(signals: dict[str, Any]) -> bool:
     """Trivial cases: use template SituationAssessment (no Assess LLM)."""
-    if signals["narrative_status"] == "absent" and signals["structured_complete_cfpb"]:
+    if signals["narrative_status"] == "absent" and signals["structured_complete_core"]:
         return True
     if (
         signals["narrative_rich"]
-        and signals["structured_complete_cfpb"]
+        and signals["structured_complete_core"]
         and signals["structured_narrative_tension"] < 0.25
         and not signals["multi_issue_hint"]
     ):
@@ -96,29 +96,29 @@ def should_skip_assess_llm(signals: dict[str, Any]) -> bool:
 def template_situation_assessment(signals: dict[str, Any]) -> dict[str, Any]:
     """Build SituationAssessment-compatible dict without LLM."""
     ns = signals["narrative_status"]
-    if ns == "absent" and signals["structured_complete_cfpb"]:
+    if ns == "absent" and signals["structured_complete_core"]:
         return {
             "complexity": "trivial",
             "narrative_status": "absent",
-            "structured_field_completeness": "cfpb_product_issue",
+            "structured_field_completeness": "core_product_issue",
             "consistency": "unknown",
             "conflict_score": 0.0,
             "recommended_weighting": "structured",
-            "rationale": "No narrative; classify from CFPB portal selections and taxonomy mapping only.",
+            "rationale": "No narrative; classify from structured intake fields and taxonomy mapping only.",
         }
     if (
         signals["narrative_rich"]
-        and signals["structured_complete_cfpb"]
+        and signals["structured_complete_core"]
         and signals["structured_narrative_tension"] < 0.25
     ):
         return {
             "complexity": "straightforward",
             "narrative_status": "present",
-            "structured_field_completeness": "cfpb_core_plus_narrative",
+            "structured_field_completeness": "core_fields_plus_narrative",
             "consistency": "aligned",
             "conflict_score": round(signals["structured_narrative_tension"], 2),
             "recommended_weighting": "balanced",
-            "rationale": "Narrative and portal selections appear aligned (high token overlap); confirm with taxonomy tools.",
+            "rationale": "Narrative and structured intake fields appear aligned (high token overlap).",
         }
     # Fallback: should not be called if should_skip_assess_llm is correct; still safe default
     return {

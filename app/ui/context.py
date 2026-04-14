@@ -170,14 +170,16 @@ def build_analytics_data(db: Session) -> dict:
 
 
 def build_settings_data() -> dict:
-    """Load company knowledge for the settings view."""
+    """Load knowledge pack content for the settings view."""
     try:
         from app.knowledge import CompanyKnowledgeService
-        svc = CompanyKnowledgeService(company_id="mock_bank")
+        from app.knowledge.mock_company_pack import deployment_label
+
+        svc = CompanyKnowledgeService()
         ctx = svc.build_company_context("")
 
         return {
-            "company_id": "mock_bank",
+            "deployment": deployment_label(),
             "taxonomy": ctx.taxonomy_candidates,
             "severity_rubric": ctx.severity_candidates,
             "routing_rules": ctx.routing_candidates,
@@ -187,7 +189,7 @@ def build_settings_data() -> dict:
     except Exception as e:
         logger.warning("Could not load company knowledge: %s", e)
         return {
-            "company_id": "mock_bank",
+            "deployment": "unknown",
             "taxonomy": {},
             "severity_rubric": [],
             "routing_rules": {},

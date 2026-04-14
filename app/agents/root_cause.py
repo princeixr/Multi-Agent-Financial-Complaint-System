@@ -50,7 +50,6 @@ def run_root_cause_hypothesis(
     *,
     classification: ClassificationResult,
     risk: RiskAssessment,
-    company_id: str = "mock_bank",
     case: CaseRead | None = None,
     narrative: str = "",
     instructions: str = "",
@@ -66,7 +65,6 @@ def run_root_cause_hypothesis(
         f"Narrative / case text:\n{narrative_text}\n"
         f"Operational classification: {classification.model_dump_json()}\n"
         f"Risk assessment: {risk.model_dump_json()}\n"
-        f"Company ID: {company_id}\n"
     )
     if instructions:
         user_message += f"\nSupervisor instructions: {instructions}\n"

@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Enums ────────────────────────────────────────────────────────────────────
@@ -45,9 +45,7 @@ class CaseCreate(BaseModel):
     enough structured portal fields are present.
     """
 
-    company_id: Optional[str] = Field(
-        None, description="Optional company identifier for company-specific routing/policy"
-    )
+    model_config = ConfigDict(extra="ignore")
 
     consumer_narrative: Optional[str] = Field(
         None,

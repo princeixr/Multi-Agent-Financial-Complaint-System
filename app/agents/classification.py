@@ -1,4 +1,4 @@
-"""Classification agent – CFPB-aware Assess → Plan → Execute → Verify.
+"""Classification agent – Assess → Plan → Execute → Verify.
 
 v2 note: when ``ClassificationAuditPackage.v2_dual_hypothesis_eligible`` is true
 (contradiction, multi_issue, or high conflict_score), a future pipeline may run
@@ -18,10 +18,16 @@ from app.agents.classification_context import (
     should_skip_assess_llm,
     template_situation_assessment,
 )
+from app.agents.classification_deterministic import (
+    build_template_classification_result,
+    enrich_operational_sub_labels,
+    should_skip_execute_llm,
+)
 from app.agents.classification_plan_rules import plan_from_assessment
 from app.agents.llm_factory import create_llm
 from app.agents.llm_json import parse_llm_json
 from app.agents.tool_loop import run_agent_with_tools
+from app.knowledge import CompanyKnowledgeService
 from app.agents.tools import lookup_company_taxonomy, search_similar_complaints
 from app.schemas.case import CaseRead
 from app.schemas.classification import ClassificationResult
@@ -37,17 +43,25 @@ from app.schemas.classification_pipeline import (
 )
 
 logger = logging.getLogger(__name__)
+_company_knowledge: CompanyKnowledgeService | None = None
+
+
+def _company_knowledge_service() -> CompanyKnowledgeService:
+    global _company_knowledge
+    if _company_knowledge is None:
+        _company_knowledge = CompanyKnowledgeService()
+    return _company_knowledge
 
 _CLASSIFICATION_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "classification.md"
 _ASSESS_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "classification_assess.md"
 
 _STRATEGY_INSTRUCTIONS = {
     ClassificationStrategy.MAPPING_ONLY: (
-        "Strategy: **mapping_only** — Map CFPB portal selections to internal taxonomy first; "
+        "Strategy: **mapping_only** — Map structured intake fields to internal taxonomy first; "
         "treat the narrative as secondary or absent."
     ),
     ClassificationStrategy.MAPPING_PLUS_NARRATIVE_CONFIRM: (
-        "Strategy: **mapping_plus_narrative_confirm** — Use portal fields as priors, then "
+        "Strategy: **mapping_plus_narrative_confirm** — Use structured fields as priors, then "
         "confirm or adjust using the narrative and tools."
     ),
     ClassificationStrategy.NARRATIVE_LED: (
@@ -65,9 +79,9 @@ _STRATEGY_INSTRUCTIONS = {
 }
 
 _WEIGHTING_BLURB = {
-    EvidenceWeighting.STRUCTURED: "Evidence weighting: **structured** — prioritize CFPB portal fields.",
+    EvidenceWeighting.STRUCTURED: "Evidence weighting: **structured** — prioritize structured intake fields.",
     EvidenceWeighting.NARRATIVE: "Evidence weighting: **narrative** — prioritize free-text narrative.",
-    EvidenceWeighting.BALANCED: "Evidence weighting: **balanced** — reconcile portal fields and narrative.",
+    EvidenceWeighting.BALANCED: "Evidence weighting: **balanced** — reconcile structured fields and narrative.",
 }
 
 
@@ -77,6 +91,25 @@ def _load_classification_prompt() -> str:
 
 def _load_assess_prompt() -> str:
     return _ASSESS_PROMPT_PATH.read_text()
+
+
+def _classification_query_text(case: CaseRead) -> str:
+    parts = [
+        case.consumer_narrative,
+        case.cfpb_product,
+        case.cfpb_sub_product,
+        case.cfpb_issue,
+        case.cfpb_sub_issue,
+        case.product,
+        case.sub_product,
+    ]
+    return " ".join(str(part).strip() for part in parts if part).strip()
+
+
+def _taxonomy_candidates_for_case(case: CaseRead) -> dict:
+    narrative = _classification_query_text(case)
+    ctx = _company_knowledge_service().build_company_context(narrative)
+    return ctx.taxonomy_candidates
 
 
 def _run_assess_llm(signals: dict, case: CaseRead, llm) -> SituationAssessment:
@@ -109,7 +142,8 @@ def _build_execute_user_message(
     assessment: SituationAssessment,
     plan: ClassificationPlan,
     instructions: str,
-    company_id: str,
+    taxonomy_candidates: dict,
+    tools_available: list[str],
 ) -> str:
     strategy_line = _STRATEGY_INSTRUCTIONS.get(
         plan.strategy,
@@ -122,7 +156,7 @@ def _build_execute_user_message(
     lines = [
         "## Case evidence",
         "",
-        "**CFPB portal fields** (consumer menu selections — may be incomplete or wrong):",
+        "**Structured intake fields** (may be incomplete or wrong):",
         f"- cfpb_product: {case.cfpb_product or 'N/A'}",
         f"- cfpb_sub_product: {case.cfpb_sub_product or 'N/A'}",
         f"- cfpb_issue: {case.cfpb_issue or 'N/A'}",
@@ -146,18 +180,34 @@ def _build_execute_user_message(
         f"- Tool budget (max rounds): {plan.tool_budget}",
         f"- Retrieval emphasis: {plan.needs_retrieval}",
         "",
-        f"Company ID for tools: {company_id}",
+        "## Company taxonomy candidates",
+        json.dumps(taxonomy_candidates, indent=2),
+        "",
+        f"Available tools: {', '.join(tools_available) if tools_available else 'none'}",
     ]
     if instructions:
         lines.extend(["", f"Supervisor instructions: {instructions}"])
     lines.extend(
         [
             "",
-            "Use tools within the tool budget to ground classification. When finished, "
-            "respond with **only** the classification JSON per the system schema.",
+            "If tools are available, use them only when the plan requires extra evidence. "
+            "When finished, respond with **only** the classification JSON per the system schema.",
         ]
     )
     return "\n".join(lines)
+
+
+def _select_execution_tools(plan: ClassificationPlan) -> list:
+    if not plan.needs_retrieval or plan.tool_budget <= 0:
+        return []
+    return [search_similar_complaints, lookup_company_taxonomy]
+
+
+def _run_execute_no_tools(llm, system_prompt: str, user_message: str) -> dict:
+    response = llm.invoke(
+        [SystemMessage(content=system_prompt), HumanMessage(content=user_message)]
+    )
+    return parse_llm_json(response.content)
 
 
 def _v2_dual_hypothesis_eligible(assessment: SituationAssessment) -> bool:
@@ -215,12 +265,11 @@ def run_classification(
     sub_product: str | None = None,
     company: str | None = None,
     state: str | None = None,
-    company_id: str = "mock_bank",
     instructions: str = "",
     model_name: str | None = None,
     temperature: float = 0.0,
 ) -> ClassificationPipelineOutput:
-    """Classify using Assess → Plan (rules) → Execute (tools) → Verify (code)."""
+    """Classify using Assess → Plan (rules) → Execute → Verify (code)."""
     if case is None:
         if narrative is None:
             raise ValueError("Provide ``case`` or ``narrative``.")
@@ -232,7 +281,7 @@ def run_classification(
             state=state,
         )
 
-    logger.info("Classification pipeline starting (CFPB-aware)")
+    logger.info("Classification pipeline starting")
 
     case_dict = case.model_dump()
     signals = build_deterministic_signals(case_dict)
@@ -247,25 +296,44 @@ def run_classification(
         assessment = _run_assess_llm(signals, case, llm)
 
     plan = plan_from_assessment(assessment)
+    taxonomy_candidates = _taxonomy_candidates_for_case(case)
 
-    system_prompt = _load_classification_prompt()
-    user_message = _build_execute_user_message(
-        case, assessment, plan, instructions, company_id
-    )
-    tools = [search_similar_complaints, lookup_company_taxonomy]
-    max_rounds = max(1, min(plan.tool_budget, 10))
+    execute_skipped = False
+    if should_skip_execute_llm(signals, assessment, plan) and (
+        taxonomy_candidates.get("product_categories")
+        and taxonomy_candidates.get("issue_types")
+    ):
+        result = build_template_classification_result(case, signals, taxonomy_candidates)
+        evidence_used: dict[str, bool] = {}
+        execute_skipped = True
+    else:
+        system_prompt = _load_classification_prompt()
+        tools = _select_execution_tools(plan)
+        user_message = _build_execute_user_message(
+            case,
+            assessment,
+            plan,
+            instructions,
+            taxonomy_candidates,
+            [tool.name for tool in tools],
+        )
+        if tools:
+            max_rounds = max(1, min(plan.tool_budget, 10))
+            exec_out = run_agent_with_tools(
+                llm,
+                system_prompt,
+                user_message,
+                tools,
+                max_rounds=max_rounds,
+                return_evidence=True,
+            )
+            result_dict, evidence_used = exec_out  # type: ignore[misc]
+        else:
+            result_dict = _run_execute_no_tools(llm, system_prompt, user_message)
+            evidence_used = {}
+        result = ClassificationResult(**result_dict)
 
-    exec_out = run_agent_with_tools(
-        llm,
-        system_prompt,
-        user_message,
-        tools,
-        max_rounds=max_rounds,
-        return_evidence=True,
-    )
-    result_dict, evidence_used = exec_out  # type: ignore[misc]
-
-    result = ClassificationResult(**result_dict)
+    result = enrich_operational_sub_labels(result, case)
     result = _verify_classification(result, assessment, plan, signals)
 
     v2_flag = _v2_dual_hypothesis_eligible(assessment)
@@ -280,7 +348,8 @@ def run_classification(
         review_recommended=result.review_recommended,
         reason_codes=list(result.reason_codes),
         assess_skipped_llm=assess_skipped,
-        plan_skipped_llm=True,
+        plan_skipped_llm=False,
+        execute_skipped_llm=execute_skipped,
         v2_dual_hypothesis_eligible=v2_flag,
     )
 

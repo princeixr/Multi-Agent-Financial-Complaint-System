@@ -15,8 +15,10 @@ def prompt_bundle_version() -> str:
     return os.getenv("PROMPT_BUNDLE_VERSION", "default")
 
 
-def knowledge_pack_version(company_id: str) -> str:
-    return os.getenv("KNOWLEDGE_PACK_VERSION") or f"company:{company_id}"
+def knowledge_pack_version() -> str:
+    from app.knowledge.mock_company_pack import deployment_label
+
+    return os.getenv("KNOWLEDGE_PACK_VERSION") or f"pack:{deployment_label()}"
 
 
 def default_chat_model() -> str:

@@ -100,6 +100,11 @@ def _case_read_from_db(db_case: ComplaintCase) -> CaseRead:
         if db_case.operational_mapping_json
         else None
     )
+    # sub_product is not stored on classifications row; merge from operational_mapping JSON.
+    if classification is not None and isinstance(operational_mapping, dict):
+        sp = operational_mapping.get("sub_product")
+        if sp is not None:
+            classification = {**classification, "sub_product": sp}
     root_cause_hypothesis = (
         json.loads(db_case.root_cause_hypothesis_json)
         if db_case.root_cause_hypothesis_json
@@ -321,9 +326,9 @@ async def health_check() -> dict:
     "/intake/session",
     summary="Start a new intake chat session",
 )
-async def start_intake(company_id: str | None = None) -> dict:
+async def start_intake() -> dict:
     """Start a channel-agnostic intake session (used by web chat and later voice)."""
-    session_id, state = start_intake_session(channel="web_chat", company_id=company_id)
+    session_id, state = start_intake_session(channel="web_chat")
     return {
         "session_id": session_id,
         "agent_message": state.last_agent_message,

@@ -48,7 +48,6 @@ def run_compliance_check(
     classification: ClassificationResult,
     risk: RiskAssessment,
     resolution: ResolutionRecommendation,
-    company_id: str = "mock_bank",
     case: CaseRead | None = None,
     narrative: str = "",
     instructions: str = "",
@@ -71,7 +70,6 @@ def run_compliance_check(
         f"Classification: {classification.model_dump_json()}\n"
         f"Risk Assessment: {risk.model_dump_json()}\n"
         f"Proposed Resolution: {resolution.model_dump_json()}\n"
-        f"Company ID: {company_id}\n"
     )
     if instructions:
         user_message += f"\nSupervisor instructions: {instructions}\n"

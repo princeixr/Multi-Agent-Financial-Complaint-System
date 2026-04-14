@@ -125,8 +125,6 @@
       errorEl.classList.remove('hidden');
     };
 
-    const companyId = '{{ user.company or '' }}';
-
     const setPacketStatus = (packet) => {
       if (!packet) {
         packetStatusEl.innerHTML = '<div>Missing packet status.</div>';
@@ -180,10 +178,7 @@
 
       busy = true;
       try {
-        const url = companyId
-        ? `/api/v1/intake/session?company_id=${encodeURIComponent(companyId)}`
-        : '/api/v1/intake/session';
-      const resp = await fetch(url, { method: 'POST', credentials: 'same-origin' });
+        const resp = await fetch('/api/v1/intake/session', { method: 'POST', credentials: 'same-origin' });
         const data = await resp.json();
         sessionId = data.session_id;
         appendMessage('agent', data.agent_message || 'Hello.');
