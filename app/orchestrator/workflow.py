@@ -256,32 +256,77 @@ def routing_node(state: WorkflowState) -> WorkflowState:
         classification = state.get("classification")
         risk = state.get("risk_assessment")
         resolution = state.get("resolution")
+        root_cause = state.get("root_cause_hypothesis")
+        compliance = state.get("compliance", {})
 
+        # Extract classification fields
         product_category = (
             classification.product_category.value
             if classification and hasattr(classification, "product_category")
             else None
         )
+        issue_type = (
+            classification.issue_type.value
+            if classification and hasattr(classification, "issue_type")
+            else None
+        )
+        classification_reasoning = (
+            getattr(classification, "reasoning", None)
+            if classification else None
+        )
+
+        # Extract risk fields
         risk_level = (
             risk.risk_level.value
             if risk and hasattr(risk, "risk_level")
             else None
         )
-        resolution_summary = (
-            getattr(resolution, "recommended_action", None)
-            or getattr(resolution, "summary", None)
-            if resolution
+        risk_score = getattr(risk, "risk_score", None) if risk else None
+        risk_reasoning = getattr(risk, "reasoning", None) if risk else None
+        regulatory_risk = getattr(risk, "regulatory_risk", False) if risk else False
+        financial_impact = getattr(risk, "financial_impact_estimate", None) if risk else None
+
+        # Extract resolution fields
+        resolution_action = (
+            resolution.recommended_action.value
+            if resolution and hasattr(resolution, "recommended_action")
             else None
         )
+        resolution_description = getattr(resolution, "description", None) if resolution else None
+        resolution_reasoning = getattr(resolution, "reasoning", None) if resolution else None
+        estimated_days = getattr(resolution, "estimated_resolution_days", None) if resolution else None
+        monetary_amount = getattr(resolution, "monetary_amount", None) if resolution else None
+
+        # Extract root cause fields
+        root_cause_category = getattr(root_cause, "root_cause_category", None) if root_cause else None
+        root_cause_reasoning = getattr(root_cause, "reasoning", None) if root_cause else None
+        controls_to_check = getattr(root_cause, "controls_to_check", None) if root_cause else None
+
+        # Extract compliance flags
+        compliance_flags = compliance.get("flags", []) if isinstance(compliance, dict) else []
 
         jira_ticket = create_complaint_ticket(
             case_id=case.id,
             team=destination,
             product_category=product_category,
+            issue_type=issue_type,
             risk_level=risk_level,
+            risk_score=risk_score,
+            risk_reasoning=risk_reasoning,
+            regulatory_risk=regulatory_risk,
+            financial_impact=financial_impact,
             channel=case.channel.value if case.channel else None,
             consumer_narrative=case.consumer_narrative,
-            resolution_summary=str(resolution_summary) if resolution_summary else None,
+            resolution_action=resolution_action,
+            resolution_description=resolution_description,
+            resolution_reasoning=resolution_reasoning,
+            estimated_resolution_days=estimated_days,
+            monetary_amount=monetary_amount,
+            root_cause_category=root_cause_category,
+            root_cause_reasoning=root_cause_reasoning,
+            controls_to_check=controls_to_check,
+            compliance_flags=compliance_flags if compliance_flags else None,
+            classification_reasoning=classification_reasoning,
             company=case.company,
             state=case.state,
         )

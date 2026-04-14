@@ -10,7 +10,6 @@ JIRA_BASE_URL        https://triageai.atlassian.net
 JIRA_USER_EMAIL      sairahul2721@gmail.com
 JIRA_API_TOKEN       <generated from id.atlassian.com>
 JIRA_PROJECT_KEY     KAN                          (default: KAN)
-JIRA_ASSIGNEE_ID     712020:ef925fc6-...          (default: Rahul's account)
 """
 
 from __future__ import annotations
@@ -72,33 +71,64 @@ _TEAM_ID_MAP: dict[str, str] = {
 _JIRA_REST = f"{_BASE_URL}/rest/api/3"
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── ADF (Atlassian Document Format) helpers ──────────────────────────────────
+
+
+def _adf_text(text: str) -> dict:
+    return {"type": "text", "text": text}
+
+
+def _adf_bold(text: str) -> dict:
+    return {"type": "text", "text": text, "marks": [{"type": "strong"}]}
+
+
+def _adf_para(*nodes: dict) -> dict:
+    return {"type": "paragraph", "content": list(nodes)}
+
+
+def _adf_heading(text: str, level: int = 3) -> dict:
+    return {
+        "type": "heading",
+        "attrs": {"level": level},
+        "content": [_adf_text(text)],
+    }
+
+
+def _adf_rule() -> dict:
+    return {"type": "rule"}
+
+
+def _adf_bullet_list(items: list[str]) -> dict:
+    return {
+        "type": "bulletList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [_adf_para(_adf_text(item))],
+            }
+            for item in items
+            if item
+        ],
+    }
+
+
+def _adf_doc(*blocks: dict | None) -> dict[str, Any]:
+    """Build an ADF document from block-level nodes (paragraphs, headings, etc.)."""
+    return {
+        "version": 1,
+        "type": "doc",
+        "content": [b for b in blocks if b is not None],
+    }
+
+
+def _truncate(text: str, max_len: int = 800) -> str:
+    if len(text) <= max_len:
+        return text
+    return text[:max_len].rstrip() + "…"
 
 
 def _auth() -> httpx.BasicAuth:
     return httpx.BasicAuth(username=_USER_EMAIL, password=_API_TOKEN)
-
-
-def _adf_doc(*paragraphs: str) -> dict[str, Any]:
-    """Build a minimal Atlassian Document Format (ADF) document."""
-
-    def _para(text: str) -> dict:
-        return {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": text}],
-        }
-
-    return {
-        "version": 1,
-        "type": "doc",
-        "content": [_para(p) for p in paragraphs if p],
-    }
-
-
-def _truncate(text: str, max_len: int = 500) -> str:
-    if len(text) <= max_len:
-        return text
-    return text[:max_len].rstrip() + "…"
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -109,10 +139,24 @@ def create_complaint_ticket(
     case_id: str,
     team: str,
     product_category: str | None,
+    issue_type: str | None = None,
     risk_level: str | None,
+    risk_score: float | None = None,
+    risk_reasoning: str | None = None,
+    regulatory_risk: bool = False,
+    financial_impact: float | None = None,
     channel: str | None,
     consumer_narrative: str | None,
-    resolution_summary: str | None,
+    resolution_action: str | None = None,
+    resolution_description: str | None = None,
+    resolution_reasoning: str | None = None,
+    estimated_resolution_days: int | None = None,
+    monetary_amount: float | None = None,
+    root_cause_category: str | None = None,
+    root_cause_reasoning: str | None = None,
+    controls_to_check: list[str] | None = None,
+    compliance_flags: list[str] | None = None,
+    classification_reasoning: str | None = None,
     company: str | None = None,
     state: str | None = None,
 ) -> dict[str, str]:
@@ -131,35 +175,157 @@ def create_complaint_ticket(
         )
 
     short_id = case_id[:8].upper()
-    product_label = product_category or "Unknown Product"
+    product_label = (product_category or "unknown").replace("_", " ").title()
+    issue_label = (issue_type or "unknown").replace("_", " ").title()
     risk_label = risk_level or "unknown"
     priority_name = _RISK_TO_PRIORITY.get(risk_label.lower(), "Medium")
+    team_label = team.replace("_", " ").title()
 
-    summary = f"[{team}] Complaint #{short_id} – {product_label}"
+    summary = f"[{team_label}] {product_label} – {issue_label} (#{short_id})"
 
-    # Build ADF description paragraphs
-    narrative_block = _truncate(consumer_narrative or "No narrative provided.")
-    resolution_block = _truncate(resolution_summary or "No resolution proposed.")
+    # ── Build structured ADF description ─────────────────────────────────
+    blocks: list[dict | None] = []
 
-    description = _adf_doc(
-        "🔔 Automated ticket created by the TriageAI complaint pipeline.",
-        "",
-        f"Case ID      : {case_id}",
-        f"Routed Team  : {team}",
-        f"Product      : {product_label}",
-        f"Risk Level   : {risk_label.title()}",
-        f"Channel      : {channel or 'web'}",
-        f"Company      : {company or 'N/A'}",
-        f"State        : {state or 'N/A'}",
-        "",
-        "── Complaint Narrative ──────────────────────────────",
-        narrative_block,
-        "",
-        "── Proposed Resolution ──────────────────────────────",
-        resolution_block,
-    )
+    # Header
+    blocks.append(_adf_para(
+        _adf_text("🔔 Automated ticket created by the "),
+        _adf_bold("TriageAI complaint pipeline"),
+        _adf_text("."),
+    ))
 
-    labels = ["complaint", "auto-generated", team.replace(" ", "-")]
+    # ── Case Overview ────────────────────────────────────────────────────
+    blocks.append(_adf_heading("📋 Case Overview", 2))
+    blocks.append(_adf_bullet_list([
+        f"Case ID: {case_id}",
+        f"Product: {product_label}",
+        f"Issue Type: {issue_label}",
+        f"Channel: {(channel or 'web').replace('_', ' ').title()}",
+        f"Company: {company or 'N/A'}",
+        f"State: {state or 'N/A'}",
+        f"Routed To: {team_label}",
+    ]))
+
+    # ── Consumer Complaint ───────────────────────────────────────────────
+    blocks.append(_adf_rule())
+    blocks.append(_adf_heading("📝 Consumer Complaint", 2))
+    blocks.append(_adf_para(_adf_text(
+        _truncate(consumer_narrative or "No narrative provided.")
+    )))
+
+    # ── Classification ───────────────────────────────────────────────────
+    if classification_reasoning:
+        blocks.append(_adf_rule())
+        blocks.append(_adf_heading("🏷️ Classification", 2))
+        blocks.append(_adf_para(
+            _adf_bold("Product: "), _adf_text(product_label),
+            _adf_text("  |  "),
+            _adf_bold("Issue: "), _adf_text(issue_label),
+        ))
+        blocks.append(_adf_para(
+            _adf_bold("Reasoning: "),
+            _adf_text(_truncate(classification_reasoning, 500)),
+        ))
+
+    # ── Risk Assessment ──────────────────────────────────────────────────
+    blocks.append(_adf_rule())
+    blocks.append(_adf_heading("⚠️ Risk Assessment", 2))
+
+    risk_items = [f"Risk Level: {risk_label.upper()}"]
+    if risk_score is not None:
+        risk_items.append(f"Risk Score: {risk_score:.1f} / 100")
+    if financial_impact is not None:
+        risk_items.append(f"Estimated Financial Impact: ${financial_impact:,.2f}")
+    if regulatory_risk:
+        risk_items.append("⚖️ REGULATORY RISK: Yes — potential regulatory exposure")
+    blocks.append(_adf_bullet_list(risk_items))
+
+    if risk_reasoning:
+        blocks.append(_adf_para(
+            _adf_bold("Assessment: "),
+            _adf_text(_truncate(risk_reasoning, 500)),
+        ))
+
+    # ── Root Cause Hypothesis ────────────────────────────────────────────
+    if root_cause_category or root_cause_reasoning:
+        blocks.append(_adf_rule())
+        blocks.append(_adf_heading("🔍 Root Cause Hypothesis", 2))
+        if root_cause_category:
+            blocks.append(_adf_para(
+                _adf_bold("Category: "),
+                _adf_text(root_cause_category.replace("_", " ").title()),
+            ))
+        if root_cause_reasoning:
+            blocks.append(_adf_para(
+                _adf_bold("Analysis: "),
+                _adf_text(_truncate(root_cause_reasoning, 500)),
+            ))
+        if controls_to_check:
+            blocks.append(_adf_para(_adf_bold("Controls to verify:")))
+            blocks.append(_adf_bullet_list(controls_to_check))
+
+    # ── Proposed Resolution ──────────────────────────────────────────────
+    blocks.append(_adf_rule())
+    blocks.append(_adf_heading("✅ Proposed Resolution", 2))
+
+    if resolution_action:
+        action_label = resolution_action.replace("_", " ").title()
+        blocks.append(_adf_para(
+            _adf_bold("Recommended Action: "), _adf_text(action_label),
+        ))
+    if monetary_amount is not None:
+        blocks.append(_adf_para(
+            _adf_bold("Monetary Relief: "), _adf_text(f"${monetary_amount:,.2f}"),
+        ))
+    if estimated_resolution_days is not None:
+        blocks.append(_adf_para(
+            _adf_bold("Estimated Resolution: "),
+            _adf_text(f"{estimated_resolution_days} business day(s)"),
+        ))
+    if resolution_description:
+        blocks.append(_adf_para(
+            _adf_bold("Description: "),
+            _adf_text(_truncate(resolution_description, 600)),
+        ))
+    if resolution_reasoning:
+        blocks.append(_adf_para(
+            _adf_bold("Reasoning: "),
+            _adf_text(_truncate(resolution_reasoning, 400)),
+        ))
+
+    # ── Compliance Flags ─────────────────────────────────────────────────
+    if compliance_flags:
+        blocks.append(_adf_rule())
+        blocks.append(_adf_heading("🛡️ Compliance Flags", 2))
+        blocks.append(_adf_bullet_list(compliance_flags))
+
+    # ── Next Steps ───────────────────────────────────────────────────────
+    blocks.append(_adf_rule())
+    blocks.append(_adf_heading("👉 Next Steps for Team", 2))
+
+    next_steps = [
+        "Review the consumer complaint narrative above.",
+        "Verify the root cause hypothesis and check listed controls.",
+        "Validate or adjust the proposed resolution.",
+    ]
+    if regulatory_risk:
+        next_steps.append("⚖️ Flag for regulatory review — this case has regulatory exposure.")
+    if compliance_flags:
+        next_steps.append("Address compliance flags before closing.")
+    if monetary_amount is not None:
+        next_steps.append(f"Process monetary relief of ${monetary_amount:,.2f} if approved.")
+    next_steps.append("Update this ticket with findings and close when resolved.")
+    blocks.append(_adf_bullet_list(next_steps))
+
+    description = _adf_doc(*blocks)
+
+    labels = [
+        "complaint",
+        "auto-generated",
+        team.replace(" ", "-"),
+        risk_label.lower(),
+    ]
+    if regulatory_risk:
+        labels.append("regulatory-risk")
 
     # Resolve Atlassian Team ID for this routing destination (if mapped)
     atlassian_team_id = _TEAM_ID_MAP.get(team)
