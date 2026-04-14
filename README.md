@@ -148,6 +148,7 @@ Optional:
 - `OPENAI_CHAT_MODEL` / `DEEPSEEK_CHAT_MODEL` — override the default model
 - `EMBEDDING_PROVIDER=huggingface` (default) or `openai`
 - `HF_DEVICE=cpu` / `cuda` / `mps` — for local embedding model
+- **ElevenLabs** — see `app/env_elevenlabs.py` and `app/api/elevenlabs_intake.py`; set API key + voice id for TTS and Custom LLM helpers (`ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, etc.; details in section 6)
 - `JIRA_BASE_URL`, `JIRA_USERNAME`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY` — enable Jira ticket creation via Jira MCP
 - `JIRA_ISSUE_TYPE`, `JIRA_ISSUE_PRIORITY` — optional Jira defaults
 - `LOG_LEVEL`, `SQL_ECHO`
@@ -188,19 +189,56 @@ PII redaction is applied automatically during ingestion — narratives are scrub
 
 ### 6. Run the server
 
+**HTTP (default port 8000):**
+
 ```bash
-python uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+If you use a virtualenv, activate it first or call the interpreter explicitly, e.g. `./.venv/bin/python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000`.
 
 On startup, the app ensures the **pgvector** extension exists and creates tables if needed.
 
+**HTTPS (local dev, recommended for lodge voice UI):** Browsers treat `http://` as “Not Secure” and some features (e.g. microphone for speech input) work best on **HTTPS**. Use [mkcert](https://github.com/FiloSottile/mkcert) and the helper script:
+
+```bash
+brew install mkcert && mkcert -install
+mkdir -p .certs && cd .certs && mkcert localhost 127.0.0.1 ::1 && cd ..
+./scripts/dev_https.sh
+```
+
+Then open **`https://127.0.0.1:8001`** in the address bar (default port `8001`). Override the port with `PORT=8000 ./scripts/dev_https.sh`. Certificates under `.certs/` are gitignored.
+
+`main.py` calls `load_dotenv()` at import time so variables from `.env` are available to the API and UI.
+
+#### ElevenLabs integration (`app/api/elevenlabs_intake.py`)
+
+This module mounts an **OpenAI-compatible Custom LLM** endpoint for **ElevenLabs Conversational AI** agents and optional **text-to-speech** helpers. The same **intake brain** as chat (`process_intake_message` in `app/agents/intake_engine.py`) backs both paths.
+
+| What | URL / notes |
+|------|-------------|
+| **Custom LLM base URL** (set in the ElevenLabs agent) | `{PUBLIC_BASE_URL}/api/v1/integrations/elevenlabs` — ElevenLabs calls `POST .../v1/chat/completions` (SSE). |
+| **Chat completions (SSE)** | `POST /api/v1/integrations/elevenlabs/v1/chat/completions` — streams assistant text from the intake engine. Use a stable `user` / `user_id` per conversation for multi-turn. |
+| **TTS (integration route, optional Bearer)** | `POST /api/v1/integrations/elevenlabs/tts` — JSON `{"text":"...", "voice_id": null}`. If `ELEVENLABS_CUSTOM_LLM_SECRET` is set, send `Authorization: Bearer <same>`. |
+| **TTS for lodge UI** | `POST /api/v1/intake/tts` — same synthesis, **no** Custom LLM secret; uses server-side API key only. |
+| **Health** | `GET /api/v1/integrations/elevenlabs/health` |
+
+Shared env resolution lives in **`app/env_elevenlabs.py`** (API key + voice id must both be set for TTS to be considered configured):
+
+- **API key (one of):** `ELEVENLABS_API_KEY`, `ELEVELABS_API_KEY`, `elevenlabs_api_key`, `XI_API_KEY`
+- **Voice id (one of):** `ELEVENLABS_VOICE_ID`, `ELEVENLABS_VOICE`, `elevenlabs_voice_id`, `VOICE_ID`, `ELEVENLABS_DEFAULT_VOICE_ID`, `ELEVENLABS_VOICEID`
+- **Optional:** `ELEVENLABS_CUSTOM_LLM_SECRET` — protects Custom LLM + `/integrations/elevenlabs/tts` when set; `ELEVENLABS_INTAKE_REQUIRE_USER=1` fails requests missing `user`/`user_id` on the Custom LLM endpoint.
+
+**Lodge a complaint (voice + chat):** After login, **`/complaints/new`** — enable **Voice mode** for browser speech-to-text and (when env is set) ElevenLabs playback of agent replies. Prefer **`https://127.0.0.1:<port>/complaints/new`** when using HTTPS.
+
 ### 7. Use the dashboard
 
-Open [http://localhost:8000](http://localhost:8000) to access the web dashboard:
+Open the app root (e.g. [http://localhost:8000](http://localhost:8000) or your HTTPS URL) to access the web UI:
 
 | Screen | URL | Description |
 |--------|-----|-------------|
 | **Dashboard** | `/` | Paginated complaint table with KPIs, status badges, risk indicators |
+| **Lodge complaint** | `/complaints/new` | Interactive intake chat (optional voice + TTS when configured) |
 | **Detail** | `/complaints/{id}` | Full case view — narrative, classification, risk, resolution, compliance, routing |
 | **Trace** | `/trace/{run_id}` | Supervisor execution flow with step-by-step latency waterfall |
 | **Analytics** | `/analytics` | Complaint volume charts, risk distribution, team workload |
@@ -230,6 +268,8 @@ curl -s -X POST "http://localhost:8000/api/v1/complaints" \
 - `GET /api/v1/complaints` — list recent cases
 - `GET /api/v1/complaints/{case_id}` — fetch one case
 - `GET /api/v1/health` — health check
+- **Intake:** `POST /api/v1/intake/session`, `POST /api/v1/intake/session/{id}/message`, `POST /api/v1/intake/session/{id}/finalize`, `POST /api/v1/intake/tts` (ElevenLabs TTS for the lodge UI when configured)
+- **ElevenLabs:** `POST /api/v1/integrations/elevenlabs/v1/chat/completions` (Custom LLM SSE), `POST /api/v1/integrations/elevenlabs/tts`, `GET /api/v1/integrations/elevenlabs/health`
 - `GET /docs` — interactive API docs (Swagger)
 
 ## Project layout
@@ -264,7 +304,10 @@ curl -s -X POST "http://localhost:8000/api/v1/complaints" \
 | `app/templates/` | Jinja2 templates (Tailwind CSS, dark theme) |
 | `app/static/` | CSS and JS assets |
 | **Infrastructure** | |
-| `app/api/routes.py` | REST API endpoints |
+| `app/api/routes.py` | REST API endpoints (includes intake + `intake/tts`) |
+| `app/api/elevenlabs_intake.py` | ElevenLabs Custom LLM (SSE) + integration TTS routes |
+| `app/env_elevenlabs.py` | Shared ElevenLabs env var resolution for API + UI |
+| `scripts/dev_https.sh` | Local HTTPS dev server (mkcert + uvicorn) |
 | `app/db/` | SQLAlchemy models and session |
 | `app/schemas/` | Pydantic request/response models |
 | `app/observability/` | OTel tracing, structured events, audit persistence |
@@ -297,6 +340,7 @@ python -m app.evals.run_evals
 - **Embedding dimension mismatch** — Drop and recreate the database after changing `EMBEDDING_PROVIDER` so dimensions stay consistent.
 - **Slow first request** — With Hugging Face embeddings, the model loads on the first pipeline run that needs retrieval.
 - **Supervisor loops** — The supervisor has a 15-step max and 3-invocation-per-agent limit. If it hits these, it forces routing and finishes.
+- **ElevenLabs TTS silent or lodge banner** — Ensure both an API key and a voice id are set (see `app/env_elevenlabs.py`). Restart the server after editing `.env`. For Custom LLM, point the agent at `/api/v1/integrations/elevenlabs` and match `ELEVENLABS_CUSTOM_LLM_SECRET` if used.
 
 ## License
 

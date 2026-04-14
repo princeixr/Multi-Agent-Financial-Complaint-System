@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import json
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Body, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
 
 from app.db.session import get_db
 from app.db.models import (
@@ -22,10 +24,14 @@ from app.agents.intake_engine import (
     process_intake_message,
     start_intake_session,
 )
+from app.api.elevenlabs_intake import router as elevenlabs_intake_router
+from app.api.elevenlabs_intake import synthesize_speech_bytes
+from app.debug_voice_log import dbg_voice
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["complaints"])
+router.include_router(elevenlabs_intake_router)
 
 
 def _json_or_none(value: object | None) -> str | None:
@@ -100,6 +106,11 @@ def _case_read_from_db(db_case: ComplaintCase) -> CaseRead:
         if db_case.operational_mapping_json
         else None
     )
+    # sub_product is not stored on classifications row; merge from operational_mapping JSON.
+    if classification is not None and isinstance(operational_mapping, dict):
+        sp = operational_mapping.get("sub_product")
+        if sp is not None:
+            classification = {**classification, "sub_product": sp}
     root_cause_hypothesis = (
         json.loads(db_case.root_cause_hypothesis_json)
         if db_case.root_cause_hypothesis_json
@@ -317,18 +328,61 @@ async def health_check() -> dict:
 # ── Intake chat endpoints ────────────────────────────────────────────────────
 
 
+class StartIntakeBody(BaseModel):
+    channel: Literal["web_chat", "voice"] = "web_chat"
+
+
+class IntakeTtsBody(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+    voice_id: str | None = Field(None, description="Override ELEVENLABS_VOICE_ID for this request.")
+
+
 @router.post(
     "/intake/session",
     summary="Start a new intake chat session",
 )
-async def start_intake(company_id: str | None = None) -> dict:
-    """Start a channel-agnostic intake session (used by web chat and later voice)."""
-    session_id, state = start_intake_session(channel="web_chat", company_id=company_id)
+async def start_intake(body: StartIntakeBody | None = Body(None)) -> dict:
+    """Start a channel-agnostic intake session (used by web chat and voice UI)."""
+    channel = body.channel if body is not None else "web_chat"
+    session_id, state = start_intake_session(channel=channel)
     return {
         "session_id": session_id,
         "agent_message": state.last_agent_message,
         "packet": json.loads(state.packet.model_dump_json()),
     }
+
+
+@router.post(
+    "/intake/tts",
+    summary="Synthesize intake agent text for the browser (no Custom LLM bearer)",
+    response_class=Response,
+)
+async def intake_tts(body: IntakeTtsBody) -> Response:
+    """ElevenLabs TTS for the lodge UI; uses server-side API key only."""
+    # region agent log
+    dbg_voice("H2", "api/routes:intake_tts", "request", {"text_len": len(body.text)})
+    # endregion
+    try:
+        audio, content_type = synthesize_speech_bytes(body.text, body.voice_id)
+        # region agent log
+        dbg_voice(
+            "H2",
+            "api/routes:intake_tts",
+            "success",
+            {"audio_bytes": len(audio), "content_type": content_type},
+        )
+        # endregion
+        return Response(content=audio, media_type=content_type)
+    except HTTPException as e:
+        # region agent log
+        dbg_voice(
+            "H2",
+            "api/routes:intake_tts",
+            "http_exception",
+            {"status": e.status_code, "detail": str(e.detail)[:240]},
+        )
+        # endregion
+        raise
 
 
 @router.post(

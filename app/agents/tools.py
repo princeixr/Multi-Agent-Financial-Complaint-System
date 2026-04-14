@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 _complaint_index = None
 _resolution_index = None
-_company_knowledge_by_id: dict = {}
+_company_knowledge = None
 
 
 def _vector_db_available() -> bool:
@@ -48,13 +48,12 @@ def _resolution_index_singleton():
     return _resolution_index
 
 
-def _company_knowledge_singleton(company_id: str):
-    if company_id not in _company_knowledge_by_id:
+def _company_knowledge_service():
+    global _company_knowledge
+    if _company_knowledge is None:
         from app.knowledge import CompanyKnowledgeService
-        _company_knowledge_by_id[company_id] = CompanyKnowledgeService(
-            company_id=company_id
-        )
-    return _company_knowledge_by_id[company_id]
+        _company_knowledge = CompanyKnowledgeService()
+    return _company_knowledge
 
 
 # ── Retrieval tools ─────────────────────────────────────────────────────────
@@ -136,33 +135,31 @@ def search_similar_resolutions(
 # ── Knowledge tools ─────────────────────────────────────────────────────────
 
 @tool
-def lookup_company_taxonomy(narrative: str, company_id: str) -> str:
-    """Retrieve the company's operational taxonomy candidates relevant to this complaint.
+def lookup_company_taxonomy(narrative: str) -> str:
+    """Retrieve operational taxonomy candidates relevant to this complaint.
 
     Returns product category and issue type candidates ranked by relevance
     to the complaint narrative. Use this to ground classification decisions.
 
     Args:
         narrative: The complaint narrative text.
-        company_id: The company identifier (e.g. 'mock_bank').
     """
-    svc = _company_knowledge_singleton(company_id)
+    svc = _company_knowledge_service()
     ctx = svc.build_company_context(narrative)
     return json.dumps(ctx.taxonomy_candidates, indent=2, default=str)
 
 
 @tool
-def lookup_severity_rubric(narrative: str, company_id: str) -> str:
-    """Retrieve the company's severity rubric and policy snippets relevant to this complaint.
+def lookup_severity_rubric(narrative: str) -> str:
+    """Retrieve severity rubric and policy snippets relevant to this complaint.
 
     Returns severity level definitions and policy candidates ranked by relevance.
     Use this to ground risk assessment, compliance checks, and resolution planning.
 
     Args:
         narrative: The complaint narrative text.
-        company_id: The company identifier (e.g. 'mock_bank').
     """
-    svc = _company_knowledge_singleton(company_id)
+    svc = _company_knowledge_service()
     ctx = svc.build_company_context(narrative)
     return json.dumps(
         {
@@ -175,22 +172,19 @@ def lookup_severity_rubric(narrative: str, company_id: str) -> str:
 
 
 @tool
-def lookup_routing_rules(company_id: str) -> str:
-    """Retrieve the company's routing matrix — team ownership by product category.
+def lookup_routing_rules() -> str:
+    """Retrieve the routing matrix — team ownership by product category.
 
     Returns the mapping of product categories to internal teams, plus
     escalation team names. Use this to understand routing options.
-
-    Args:
-        company_id: The company identifier (e.g. 'mock_bank').
     """
-    svc = _company_knowledge_singleton(company_id)
+    svc = _company_knowledge_service()
     ctx = svc.build_company_context("")
     return json.dumps(ctx.routing_candidates, indent=2, default=str)
 
 
 @tool
-def lookup_root_cause_controls(narrative: str, company_id: str) -> str:
+def lookup_root_cause_controls(narrative: str) -> str:
     """Retrieve root cause control knowledge relevant to this complaint.
 
     Returns control categories and checkpoints that help identify how
@@ -198,8 +192,7 @@ def lookup_root_cause_controls(narrative: str, company_id: str) -> str:
 
     Args:
         narrative: The complaint narrative text.
-        company_id: The company identifier (e.g. 'mock_bank').
     """
-    svc = _company_knowledge_singleton(company_id)
+    svc = _company_knowledge_service()
     ctx = svc.build_company_context(narrative)
     return json.dumps(ctx.root_cause_controls, indent=2, default=str)

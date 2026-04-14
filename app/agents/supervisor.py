@@ -65,8 +65,6 @@ def _build_state_summary(state: dict[str, Any]) -> str:
     else:
         parts.append("Case: not yet ingested")
 
-    parts.append(f"Company ID: {state.get('company_id', 'unknown')}")
-
     # Completed steps
     completed = state.get("completed_steps", [])
     parts.append(f"Completed steps: {completed if completed else 'none'}")

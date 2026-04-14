@@ -31,7 +31,6 @@ def run_resolution(
     classification: ClassificationResult,
     risk: RiskAssessment,
     root_cause_hypothesis: object | None = None,
-    company_id: str = "mock_bank",
     case: CaseRead | None = None,
     narrative: str = "",
     instructions: str = "",
@@ -60,7 +59,6 @@ def run_resolution(
         f"{review_hint}"
         f"Classification: {classification.model_dump_json()}\n"
         f"Risk Assessment: {risk.model_dump_json()}\n"
-        f"Company ID: {company_id}\n"
     )
     if root_cause_hypothesis is not None:
         user_message += (

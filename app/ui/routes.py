@@ -25,6 +25,8 @@ from app.ui.context import (
     build_analytics_data,
     build_settings_data,
 )
+from app.debug_voice_log import dbg_voice
+from app.env_elevenlabs import elevenlabs_api_key, elevenlabs_voice_id, intake_tts_configured
 
 logger = logging.getLogger(__name__)
 
@@ -170,9 +172,32 @@ async def lodge_complaint(request: Request):
     if user is None:
         return _redirect_to_login()
 
+    # region agent log
+    _tts = intake_tts_configured()
+    _k = elevenlabs_api_key()
+    _v = elevenlabs_voice_id()
+    dbg_voice(
+        "H1",
+        "ui/routes:lodge_complaint",
+        "lodge_tts_flags",
+        {
+            "intake_tts_configured": _tts,
+            "api_key_len": len(_k) if _k else 0,
+            "voice_id_len": len(_v) if _v else 0,
+            "tts_missing_reason": (
+                "missing_api_key"
+                if not _k
+                else "missing_voice_id"
+                if not _v
+                else "configured"
+            ),
+        },
+    )
+    # endregion
     return templates.TemplateResponse(request, "lodge.html", context={
         "active_nav": "lodge",
         "user": user,
+        "intake_tts_enabled": _tts,
     })
 
 

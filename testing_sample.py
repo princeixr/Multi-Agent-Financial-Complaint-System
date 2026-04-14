@@ -30,10 +30,10 @@ except ModuleNotFoundError as e:
         "'./.venv/bin/python -m pip install pandas'"
     ) from e
 
+from app.knowledge.mock_company_pack import deployment_label
 from app.orchestrator.workflow import process_complaint
 
 CSV_PATH = os.getenv("TEST_CSV_PATH", "complaints.csv")
-DEFAULT_COMPANY_ID = os.getenv("COMPANY_ID", "mock_bank")
 OUTPUT_CSV = os.getenv(
     "TEST_PIPELINE_OUTPUT_CSV",
     "testing_sample_pipeline_output.csv",
@@ -88,7 +88,7 @@ def build_row_record(
         "sample_index": sample_index,
         "run_at_utc": datetime.utcnow().isoformat() + "Z",
         "source_csv": source_csv,
-        "company_id": payload.get("company_id"),
+        "deployment": deployment_label(),
         "consumer_narrative": (c.get("consumer_narrative") or payload.get("consumer_narrative")),
         "routed_to": c.get("routed_to"),
         "status": str(st) if st is not None else "",
@@ -179,7 +179,6 @@ def row_to_payload(
         )
 
     return {
-        "company_id": DEFAULT_COMPANY_ID,
         "consumer_narrative": nar_str if nar_str else None,
         "product": product_str,
         "sub_product": sub_product_str,

@@ -23,7 +23,6 @@ class WorkflowState(TypedDict, total=False):
 
     # ── Input ────────────────────────────────────────────────────────────
     raw_payload: dict  # Original API payload
-    company_id: str
 
     # ── Intake ───────────────────────────────────────────────────────────
     case: CaseRead

@@ -28,7 +28,6 @@ def _load_prompt() -> str:
 def run_risk_assessment(
     *,
     classification: ClassificationResult,
-    company_id: str = "mock_bank",
     case: CaseRead | None = None,
     narrative: str = "",
     instructions: str = "",
@@ -56,7 +55,6 @@ def run_risk_assessment(
         f"Narrative / case text:\n{narrative_text}\n"
         f"{review_hint}"
         f"Classification: {classification.model_dump_json()}\n"
-        f"Company ID: {company_id}\n"
     )
     if instructions:
         user_message += f"\nSupervisor instructions: {instructions}\n"

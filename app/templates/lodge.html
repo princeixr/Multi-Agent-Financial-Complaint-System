@@ -26,6 +26,29 @@
       </button>
     </div>
 
+    <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant/20 bg-surface-container/50 px-4 py-3">
+      <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-on-surface select-none">
+        <input id="voice-mode" type="checkbox" class="rounded border-outline-variant text-primary focus:ring-primary/30" />
+        <span class="font-medium">Voice mode</span>
+      </label>
+      <button id="mic-btn" type="button" disabled
+              title="Pause after each phrase sends your message; agent replies; then speak again"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant/40 bg-surface px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-45">
+        <span class="material-symbols-outlined text-xl">mic</span>
+        Voice turns
+      </button>
+      <span id="speech-status" class="text-xs text-on-surface-variant" aria-live="polite"></span>
+      {% if intake_tts_enabled %}
+      <span class="text-xs text-on-surface-variant ml-auto max-w-[18rem] text-right" title="Agent replies are read aloud after each turn (same intake as chat).">
+        Replies: ElevenLabs TTS · Mic: browser speech-to-text
+      </span>
+      {% else %}
+      <span class="text-xs text-on-surface-variant ml-auto max-w-[14rem] text-right">
+        Spoken replies: set <code class="text-[10px]">ELEVENLABS_API_KEY</code> + <code class="text-[10px]">ELEVENLABS_VOICE_ID</code>
+      </span>
+      {% endif %}
+    </div>
+
     <div id="chat-messages"
          class="flex-1 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface px-4 py-4 space-y-4"
          style="min-height: 420px;">
@@ -78,6 +101,9 @@
         <li>Add date and any amounts if you know them.</li>
         <li>Mention what you want as a resolution.</li>
         <li>Do not include full card, bank account, or Social Security numbers.</li>
+        <li>
+          <strong>Voice mode:</strong> pause after you finish a sentence to <strong>send</strong> it; the agent <strong>replies in chat</strong> (and aloud if ElevenLabs keys + voice id are set). Click <strong>Voice turns</strong> to stop automatic listening. You can still type and press Send.
+        </li>
       </ul>
     </div>
   </aside>
@@ -87,6 +113,8 @@
 {% block scripts %}
 <script>
   (function() {
+    const INTAKE_TTS_ENABLED = {{ 'true' if intake_tts_enabled else 'false' }};
+
     const messagesEl = document.getElementById('chat-messages');
     const inputEl = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
@@ -96,10 +124,282 @@
     const decisionActionsEl = document.getElementById('decision-actions');
     const newSessionBtn = document.getElementById('new-session-btn');
     const packetStatusEl = document.getElementById('packet-status');
+    const voiceModeEl = document.getElementById('voice-mode');
+    const micBtn = document.getElementById('mic-btn');
+    const speechStatusEl = document.getElementById('speech-status');
+
+    const SpeechRecognition =
+      typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+    let recognition = null;
+    /** Auto listen → speak → pause → send → agent replies → listen again (when Voice mode is on). */
+    let voiceLoopActive = false;
+    let utteranceBuffer = '';
+    let micListening = false;
+    let currentAudio = null;
+    let currentAudioUrl = null;
 
     let sessionId = null;
     let lastCompleted = false;
     let busy = false;
+    /** Prevents duplicate recognition 'end' → handleUtteranceEnd while async work runs. */
+    let utteranceProcessing = false;
+
+    const stopPlayback = () => {
+      if (currentAudio) {
+        try {
+          currentAudio.pause();
+        } catch (e) { /* ignore */ }
+        currentAudio = null;
+      }
+      if (currentAudioUrl) {
+        try {
+          URL.revokeObjectURL(currentAudioUrl);
+        } catch (e) { /* ignore */ }
+        currentAudioUrl = null;
+      }
+    };
+
+    // #region agent log
+    function dbgVoice(hypothesisId, loc, message, data) {
+      if (String(window.location.protocol || '') === 'https:') return;
+      try {
+        fetch('http://127.0.0.1:7588/ingest/cc293fdf-7feb-4546-bd12-9a0e7b4e174c', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '220b77' },
+          body: JSON.stringify({
+            sessionId: '220b77',
+            hypothesisId: hypothesisId,
+            location: loc,
+            message: message,
+            data: data || {},
+            timestamp: Date.now()
+          })
+        }).catch(function () {});
+      } catch (e) { /* ignore */ }
+    }
+    // #endregion
+
+    const playAgentTts = async (text) => {
+      // #region agent log
+      dbgVoice('H3', 'lodge:playAgentTts', 'entry', {
+        intakeTtsEnabled: INTAKE_TTS_ENABLED,
+        textLen: text ? String(text).length : 0
+      });
+      // #endregion
+      if (!INTAKE_TTS_ENABLED || !text || !String(text).trim()) {
+        // #region agent log
+        dbgVoice('H4', 'lodge:playAgentTts', 'early_return', { reason: 'disabled_or_empty' });
+        // #endregion
+        return;
+      }
+      stopPlayback();
+      try {
+        const resp = await fetch('/api/v1/intake/tts', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: String(text) }),
+        });
+        // #region agent log
+        dbgVoice('H2', 'lodge:playAgentTts', 'fetch_done', {
+          ok: resp.ok,
+          status: resp.status,
+          ct: resp.headers.get('Content-Type') || ''
+        });
+        // #endregion
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || 'TTS request failed');
+        }
+        const blob = await resp.blob();
+        // #region agent log
+        dbgVoice('H5', 'lodge:playAgentTts', 'blob', { blobBytes: blob.size });
+        // #endregion
+        const url = URL.createObjectURL(blob);
+        currentAudioUrl = url;
+        const audio = new Audio(url);
+        currentAudio = audio;
+        let playErr = null;
+        await new Promise((resolve) => {
+          const done = () => resolve(undefined);
+          audio.addEventListener('ended', done, { once: true });
+          audio.addEventListener('error', function () {
+            playErr = 'audio_element_error';
+            done();
+          }, { once: true });
+          audio.play().catch(function (err) {
+            playErr = err && err.message ? err.message : 'play_rejected';
+            done();
+          });
+        });
+        // #region agent log
+        dbgVoice('H5', 'lodge:playAgentTts', 'after_play', { playErr: playErr });
+        // #endregion
+      } catch (e) {
+        // #region agent log
+        dbgVoice('H2', 'lodge:playAgentTts', 'catch', { err: (e && e.message) ? String(e.message).slice(0, 120) : 'unknown' });
+        // #endregion
+        console.warn('TTS playback failed', e);
+      }
+    };
+
+    const syncMicAvailability = () => {
+      const vm = voiceModeEl.checked;
+      if (!SpeechRecognition) {
+        micBtn.disabled = true;
+        micBtn.title = 'Speech recognition is not supported in this browser (try Chrome or Edge).';
+        return;
+      }
+      micBtn.disabled = !vm || busy;
+      micBtn.setAttribute('aria-pressed', voiceLoopActive ? 'true' : 'false');
+      micBtn.classList.toggle('ring-2', voiceLoopActive);
+      micBtn.classList.toggle('ring-primary', voiceLoopActive);
+      micBtn.classList.toggle('bg-primary-container', voiceLoopActive);
+      micBtn.title = vm
+        ? (voiceLoopActive
+            ? 'Stop voice turns (you can still type and click Send)'
+            : 'Start voice turns: pause after speaking to send; agent replies, then you speak again')
+        : 'Turn on Voice mode first';
+    };
+
+    const stopVoiceRecognition = () => {
+      try {
+        if (recognition) recognition.stop();
+      } catch (e) { /* ignore */ }
+      micListening = false;
+      speechStatusEl.textContent = '';
+    };
+
+    const scheduleNextListen = () => {
+      if (!voiceModeEl.checked || !voiceLoopActive || !sessionId || busy || lastCompleted) return;
+      window.setTimeout(() => {
+        if (!voiceModeEl.checked || !voiceLoopActive || !sessionId || busy || lastCompleted) return;
+        startUtterance();
+      }, 450);
+    };
+
+    const startUtterance = () => {
+      if (!SpeechRecognition || !voiceModeEl.checked || !voiceLoopActive || !sessionId || busy || lastCompleted) {
+        return;
+      }
+      stopPlayback();
+      utteranceBuffer = '';
+      try {
+        recognition.start();
+      } catch (e) {
+        speechStatusEl.textContent = '';
+        if (String(e && e.message).indexOf('already started') < 0) {
+          console.warn('recognition.start', e);
+        }
+      }
+    };
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = (navigator.language || 'en-US');
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      recognition.addEventListener('start', () => {
+        micListening = true;
+        speechStatusEl.textContent = 'Listening… pause when you finish your sentence to send.';
+        syncMicAvailability();
+      });
+
+      recognition.addEventListener('end', () => {
+        micListening = false;
+        void handleUtteranceEnd();
+      });
+
+      recognition.addEventListener('error', (ev) => {
+        if (ev.error === 'aborted') return;
+        micListening = false;
+        speechStatusEl.textContent = '';
+        if (ev.error === 'no-speech') {
+          scheduleNextListen();
+          return;
+        }
+        if (ev.error === 'not-allowed') {
+          voiceLoopActive = false;
+          setError('Microphone permission denied. Allow the mic for this site.');
+        } else if (ev.error === 'not-supported') {
+          voiceLoopActive = false;
+          setError('Speech recognition needs HTTPS (or localhost) and a supported browser.');
+        } else {
+          setError('Speech: ' + ev.error);
+        }
+        syncMicAvailability();
+      });
+
+      recognition.addEventListener('result', (ev) => {
+        let interim = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const piece = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) {
+            utteranceBuffer += piece;
+          } else {
+            interim += piece;
+          }
+        }
+        const live = (utteranceBuffer + interim).trim();
+        speechStatusEl.textContent = live
+          ? 'Hearing: ' + live
+          : 'Listening… pause when you finish your sentence to send.';
+      });
+    }
+
+    const handleUtteranceEnd = async () => {
+      if (utteranceProcessing) return;
+      utteranceProcessing = true;
+      try {
+        const text = utteranceBuffer.trim();
+        utteranceBuffer = '';
+        speechStatusEl.textContent = '';
+
+        if (!voiceModeEl.checked || !voiceLoopActive) {
+          syncMicAvailability();
+          return;
+        }
+
+        if (!text) {
+          scheduleNextListen();
+          syncMicAvailability();
+          return;
+        }
+
+        inputEl.value = '';
+        await sendMessage(text);
+      } finally {
+        utteranceProcessing = false;
+      }
+    };
+
+    voiceModeEl.addEventListener('change', () => {
+      if (!voiceModeEl.checked) {
+        voiceLoopActive = false;
+        stopVoiceRecognition();
+      } else if (sessionId && !busy) {
+        voiceLoopActive = true;
+        scheduleNextListen();
+      }
+      syncMicAvailability();
+    });
+
+    micBtn.addEventListener('click', () => {
+      if (!SpeechRecognition || !voiceModeEl.checked || busy) return;
+      setError(null);
+      if (voiceLoopActive) {
+        voiceLoopActive = false;
+        stopVoiceRecognition();
+        syncMicAvailability();
+        return;
+      }
+      voiceLoopActive = true;
+      stopPlayback();
+      startUtterance();
+      syncMicAvailability();
+    });
 
     const hideDecisionActions = () => {
       decisionActionsEl.classList.add('hidden');
@@ -124,8 +424,6 @@
       errorEl.textContent = msg;
       errorEl.classList.remove('hidden');
     };
-
-    const companyId = '{{ user.company or '' }}';
 
     const setPacketStatus = (packet) => {
       if (!packet) {
@@ -171,6 +469,9 @@
 
     const startSession = async () => {
       setError(null);
+      stopPlayback();
+      voiceLoopActive = false;
+      stopVoiceRecognition();
       hideDecisionActions();
       lastCompleted = false;
       sessionId = null;
@@ -179,32 +480,66 @@
       sendBtn.disabled = true;
 
       busy = true;
+      syncMicAvailability();
       try {
-        const url = companyId
-        ? `/api/v1/intake/session?company_id=${encodeURIComponent(companyId)}`
-        : '/api/v1/intake/session';
-      const resp = await fetch(url, { method: 'POST', credentials: 'same-origin' });
-        const data = await resp.json();
+        const useVoice = voiceModeEl.checked;
+        const resp = await fetch('/api/v1/intake/session', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: useVoice ? 'voice' : 'web_chat' }),
+        });
+        const raw = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(raw.detail || raw.message || 'Could not start intake session.');
+        }
+        const data = raw;
         sessionId = data.session_id;
-        appendMessage('agent', data.agent_message || 'Hello.');
+        const greeting = data.agent_message || 'Hello.';
+        appendMessage('agent', greeting);
         setPacketStatus(data.packet || {});
         sendBtn.disabled = false;
+        if (useVoice && INTAKE_TTS_ENABLED) {
+          await playAgentTts(greeting);
+        }
       } catch (e) {
         setError(e && e.message ? e.message : 'Failed to start intake session.');
       } finally {
         busy = false;
+        if (sessionId && voiceModeEl.checked) {
+          voiceLoopActive = true;
+          scheduleNextListen();
+        }
+        syncMicAvailability();
       }
     };
 
-    const sendMessage = async () => {
-      const text = (inputEl.value || '').trim();
-      if (!text || !sessionId || busy) return;
+    const sendMessage = async (presetText) => {
+      const text =
+        presetText !== undefined && presetText !== null
+          ? String(presetText).trim()
+          : (inputEl.value || '').trim();
+      if (!text || !sessionId) return;
+      const fromVoice = presetText !== undefined && presetText !== null;
+      if (busy) {
+        if (!fromVoice) return;
+        for (let i = 0; i < 80 && busy; i++) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        if (busy) {
+          setError('Please wait for the current message to finish, then try again.');
+          return;
+        }
+      }
 
       setError(null);
+      stopPlayback();
+      stopVoiceRecognition();
       appendMessage('user', text);
       inputEl.value = '';
       sendBtn.disabled = true;
       busy = true;
+      syncMicAvailability();
 
       // small typing indicator
       appendMessage('agent', '…');
@@ -214,18 +549,24 @@
           `/api/v1/intake/session/${encodeURIComponent(sessionId)}/message` +
           `?message=${encodeURIComponent(text)}`;
         const resp = await fetch(url, { method: 'POST', credentials: 'same-origin' });
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(data.detail || data.message || 'Message request failed.');
+        }
 
         // remove the last "…" bubble
         if (messagesEl.lastElementChild) {
-          // naive: clear last 1 message if it is the typing indicator
-          // (safe for MVP)
           messagesEl.removeChild(messagesEl.lastElementChild);
         }
 
-        appendMessage('agent', data.agent_message || '');
+        const reply = data.agent_message || '';
+        appendMessage('agent', reply);
         setPacketStatus(data.packet || {});
         lastCompleted = !!data.completed;
+
+        if (voiceModeEl.checked && INTAKE_TTS_ENABLED) {
+          await playAgentTts(reply);
+        }
 
         if (lastCompleted) {
           showDecisionActions();
@@ -237,12 +578,18 @@
       } finally {
         busy = false;
         if (sessionId) sendBtn.disabled = false;
+        syncMicAvailability();
+        if (voiceModeEl.checked && voiceLoopActive && sessionId && !lastCompleted) {
+          scheduleNextListen();
+        }
       }
     };
 
     const finalize = async () => {
       if (!sessionId || busy) return;
       setError(null);
+      voiceLoopActive = false;
+      stopVoiceRecognition();
       finalizeBtn.disabled = true;
       busy = true;
       try {
@@ -265,19 +612,24 @@
       }
     };
 
-    const notYet = () => {
+    const notYet = async () => {
       if (busy) return;
       hideDecisionActions();
       lastCompleted = false;
-      appendMessage(
-        'agent',
-        'Understood. You can keep adding any details or supporting information you want included before filing.'
-      );
+      const msg =
+        'Understood. You can keep adding any details or supporting information you want included before filing.';
+      appendMessage('agent', msg);
+      if (voiceModeEl.checked && INTAKE_TTS_ENABLED) {
+        await playAgentTts(msg);
+      }
       if (sessionId) sendBtn.disabled = false;
+      if (voiceModeEl.checked && voiceLoopActive && sessionId) {
+        scheduleNextListen();
+      }
     };
 
     newSessionBtn.addEventListener('click', () => startSession());
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn.addEventListener('click', () => sendMessage());
     finalizeBtn.addEventListener('click', finalize);
     notYetBtn.addEventListener('click', notYet);
 
@@ -287,6 +639,8 @@
         sendMessage();
       }
     });
+
+    syncMicAvailability();
 
     // Kick off once the page loads.
     startSession();

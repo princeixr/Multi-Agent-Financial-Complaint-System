@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -32,7 +31,6 @@ def _score_by_cues(narrative: str, cues: Iterable[str]) -> float:
 
 @dataclass(frozen=True)
 class CompanyContext:
-    company_id: str
     taxonomy_candidates: dict[str, Any]
     severity_candidates: list[dict[str, Any]]
     policy_candidates: list[dict[str, Any]]
@@ -42,22 +40,12 @@ class CompanyContext:
 
 class CompanyKnowledgeService:
     """
-    Demo implementation of the "company knowledge layer".
+    Company knowledge layer for this deployment (single knowledge pack).
 
-    In this repo we simulate company knowledge via a pack that can be swapped
-    per company_id. Retrieval is done via lightweight cue matching with an
-    optional deterministic routing matrix.
+    Retrieval uses lightweight cue matching with an optional deterministic routing matrix.
     """
 
-    def __init__(self, company_id: str | None = None) -> None:
-        self.company_id = company_id or os.getenv("COMPANY_ID", MockCompanyPack.company_id)
-        if self.company_id != MockCompanyPack.company_id:
-            # For now, only the mock pack exists. Keep the interface stable.
-            raise ValueError(
-                f"Unknown company_id={self.company_id}. "
-                "Only the demo mock pack is available in this repository."
-            )
-
+    def __init__(self) -> None:
         self._pack = MockCompanyPack()
 
     def build_company_context(self, narrative: str) -> CompanyContext:
@@ -89,7 +77,6 @@ class CompanyKnowledgeService:
         )[:3]
 
         return CompanyContext(
-            company_id=self.company_id,
             taxonomy_candidates={
                 "product_categories": top_products,
                 "issue_types": top_issues,
@@ -107,7 +94,6 @@ class CompanyKnowledgeService:
     def build_intake_brief(self) -> dict[str, Any]:
         """Return company-facing instructions for the intake chatbot."""
         return {
-            "company_id": self.company_id,
             "company_profile": getattr(self._pack, "company_profile", {}),
             "policy_candidates": self._pack.policy_snippets[:3],
             "routing_candidates": self._pack.routing_matrix,

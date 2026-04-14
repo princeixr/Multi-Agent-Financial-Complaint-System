@@ -43,7 +43,6 @@ class IntakePacket(BaseModel):
 
     # Context
     channel: Literal["web_chat", "voice", "unknown"] = "web_chat"
-    company_id: Optional[str] = None
     customer_summary: str = ""
 
     # Rough product / issue hints (not the final taxonomy)
@@ -89,7 +88,6 @@ class IntakeSessionState(BaseModel):
 
     session_id: str
     channel: Literal["web_chat", "voice", "unknown"] = "web_chat"
-    company_id: Optional[str] = None
 
     turn_index: int = 0
     packet: IntakePacket
