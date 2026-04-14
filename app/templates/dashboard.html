@@ -9,10 +9,11 @@
     <div>
       <h1 class="text-4xl font-headline font-extrabold tracking-tight">Complaint Queue</h1>
       <p class="text-sm text-on-surface-variant mt-1">System-wide complaint monitoring with real-time AI classification and risk assessment triggers.</p>
-  {% if user and user.role != 'admin' and user.company %}
-  <p class="text-sm text-on-surface-variant mt-2">Showing complaint history for <strong>{{ user.company }}</strong>.</p>
-  {% endif %}
+      {% if user and user.role != 'admin' and user.company %}
+      <p class="text-sm text-on-surface-variant mt-2">Showing complaint history for <strong>{{ user.company }}</strong>.</p>
+      {% endif %}
     </div>
+    {% if user and user.role == 'admin' %}
     <div class="flex gap-4">
       <!-- KPI: Active Intake -->
       <div class="bg-surface-container rounded-xl p-4 min-w-[140px]">
@@ -33,6 +34,7 @@
         <div class="text-[10px] text-on-surface-variant">Critical risk cases</div>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 
@@ -41,30 +43,34 @@
   <!-- Table Header -->
   <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-surface-container-high/50 border-b border-outline-variant/10">
     <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Case ID</div>
+    {% if user and user.role == 'admin' %}
     <div class="col-span-3 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Subject / Product</div>
     <div class="col-span-1 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Status</div>
     <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Risk Level</div>
     <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Assigned Team</div>
     <div class="col-span-1 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">AI Conf.</div>
     <div class="col-span-1 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant text-right">Actions</div>
+    {% else %}
+    <div class="col-span-8 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Subject / Product</div>
+    <div class="col-span-2 text-[11px] uppercase tracking-[0.1em] font-bold text-on-surface-variant">Status</div>
+    {% endif %}
   </div>
 
   {% if cases %}
   {% for case in cases %}
+  {% if user and user.role == 'admin' %}
   <a href="/complaints/{{ case.id }}" class="grid grid-cols-12 gap-4 px-6 py-4 items-center table-row-hover border-b border-outline-variant/5 block">
     <!-- Case ID -->
     <div class="col-span-2">
       <span class="font-mono text-xs text-primary">#{{ case.id[:12] }}</span>
     </div>
-
     <!-- Subject / Product -->
     <div class="col-span-3">
-      <div class="text-sm font-medium text-on-surface leading-snug">{{ case.subject }}</div>
+      <div class="text-sm font-medium text-on-surface">{{ case.subject }}</div>
       {% if case.product %}
       <div class="text-[11px] text-on-surface-variant mt-0.5">{{ case.product }}</div>
       {% endif %}
     </div>
-
     <!-- Status Badge -->
     <div class="col-span-1">
       {% set status_colors = {
@@ -81,16 +87,10 @@
         {{ case.status | replace('_', ' ') }}
       </span>
     </div>
-
     <!-- Risk Level -->
     <div class="col-span-2 flex items-center gap-2">
       {% if case.risk_level %}
-        {% set risk_colors = {
-          "critical": "critical",
-          "high": "high",
-          "medium": "medium",
-          "low": "low",
-        } %}
+        {% set risk_colors = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"} %}
         <span class="status-dot {{ risk_colors.get(case.risk_level, 'medium') }}"></span>
         <span class="text-xs font-semibold uppercase
                       {% if case.risk_level == 'critical' %}text-error
@@ -103,7 +103,6 @@
         <span class="text-xs text-on-surface-variant/50">—</span>
       {% endif %}
     </div>
-
     <!-- Assigned Team -->
     <div class="col-span-2">
       {% if case.routed_to %}
@@ -112,7 +111,6 @@
       <span class="text-xs text-on-surface-variant/50">Unassigned</span>
       {% endif %}
     </div>
-
     <!-- AI Confidence -->
     <div class="col-span-1">
       {% if case.confidence is not none %}
@@ -130,12 +128,42 @@
       <span class="text-xs text-on-surface-variant/50">—</span>
       {% endif %}
     </div>
-
     <!-- Actions -->
     <div class="col-span-1 text-right">
       <span class="material-symbols-outlined text-on-surface-variant/50 text-lg hover:text-on-surface transition-colors">chevron_right</span>
     </div>
   </a>
+  {% else %}
+  <div class="grid grid-cols-12 gap-4 px-6 py-4 items-center border-b border-outline-variant/5 cursor-default">
+    <!-- Case ID -->
+    <div class="col-span-2">
+      <span class="font-mono text-xs text-primary">#{{ case.id[:12] }}</span>
+    </div>
+    <!-- Subject / Product -->
+    <div class="col-span-8">
+      <div class="text-sm font-medium text-on-surface">{{ case.subject }}</div>
+      {% if case.product %}
+      <div class="text-[11px] text-on-surface-variant mt-0.5">{{ case.product }}</div>
+      {% endif %}
+    </div>
+    <!-- Status Badge -->
+    <div class="col-span-2">
+      {% set status_colors = {
+        "routed": "bg-tertiary/15 text-tertiary",
+        "reviewed": "bg-primary/15 text-primary",
+        "classified": "bg-secondary-container text-on-secondary-container",
+        "risk_assessed": "bg-secondary-container text-on-secondary-container",
+        "resolution_proposed": "bg-primary/15 text-primary",
+        "compliance_checked": "bg-primary/15 text-primary",
+        "intake_complete": "bg-surface-container-highest text-on-surface-variant",
+      } %}
+      <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide
+                    {{ status_colors.get(case.status, 'bg-surface-container-highest text-on-surface-variant') }}">
+        {{ case.status | replace('_', ' ') }}
+      </span>
+    </div>
+  </div>
+  {% endif %}
   {% endfor %}
   {% else %}
   <!-- Empty State -->
