@@ -1,6 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Intake Chat{% endblock %}
 
+{% block head %}
+<style>
+#chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+#chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+#chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(27,55,94,0.2);
+  border-radius: 4px;
+}
+.dark #chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(173,199,255,0.2);
+}
+#chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(27,55,94,0.4);
+}
+.dark #chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(173,199,255,0.4);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8">
   <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Intake Portal</p>
@@ -26,9 +52,10 @@
       </button>
     </div>
 
-    <div id="chat-messages"
-         class="flex-1 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface px-4 py-4 space-y-4"
-         style="min-height: 420px;">
+    <div class="rounded-xl border border-outline-variant/20 bg-surface overflow-hidden" style="height: 420px; flex-shrink: 0;">
+      <div id="chat-messages"
+           class="overflow-y-auto h-full px-4 py-4 space-y-4">
+      </div>
     </div>
 
     <div class="mt-4 flex items-end gap-3">
