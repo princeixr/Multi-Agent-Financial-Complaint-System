@@ -149,6 +149,9 @@ def build_case_detail(db_case: ComplaintCase) -> dict:
         "routed_to": db_case.routed_to,
         "team_assignment": db_case.team_assignment,
         "severity_class": db_case.severity_class,
+        "intake_session_transcript": _safe_json_load(
+            getattr(db_case, "intake_session_transcript_json", None)
+        ),
     }
 
 

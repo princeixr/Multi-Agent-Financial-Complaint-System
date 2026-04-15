@@ -18,7 +18,7 @@
 <div class="mb-6 flex items-center gap-2">
   <a href="/" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
     <span class="material-symbols-outlined text-lg">arrow_back</span>
-    Queue
+    {% if user.role == 'user' %}My Complaints{% elif user.role == 'team' %}My Queue{% else %}Queue{% endif %}
   </a>
   <span class="text-on-surface-variant/30">/</span>
   <span class="text-xs font-mono text-primary font-bold">#{{ case.id[:12] }}</span>
@@ -49,7 +49,7 @@
       {{ rl }} Risk
     </span>
     {% endif %}
-    {% if run_id %}
+    {% if run_id and user.role == 'admin' %}
     <a href="/trace/{{ run_id }}"
        class="flex items-center gap-2 px-4 py-2 rounded-lg aurora-gradient text-white text-sm font-semibold hover:opacity-90 transition-all shadow-md">
       <span class="material-symbols-outlined text-lg">hub</span>
@@ -77,6 +77,35 @@
       </div>
       <p class="text-sm text-on-surface/80 leading-relaxed whitespace-pre-wrap">{{ case.consumer_narrative }}</p>
     </div>
+
+    {% if case.intake_session_transcript is mapping and case.intake_session_transcript.get('conversation_history') %}
+    <div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-outline-variant/15">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-9 h-9 bg-tertiary-container rounded-lg flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-tertiary-container text-xl">forum</span>
+        </div>
+        <div class="flex-1">
+          <h2 class="font-headline font-bold text-lg text-on-surface">Intake session</h2>
+          <p class="text-xs text-on-surface-variant mt-0.5">Transcript from your lodge chat (saved at submit).</p>
+        </div>
+      </div>
+      <div class="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+        {% for turn in case.intake_session_transcript.conversation_history %}
+        {% set role = turn.get('role', '') %}
+        {% set msg = turn.get('message', '') %}
+        {% if role == 'user' %}
+        <div class="flex justify-end">
+          <div class="max-w-[85%] rounded-xl bg-primary text-white px-4 py-3 text-sm whitespace-pre-wrap shadow-sm">{{ msg }}</div>
+        </div>
+        {% else %}
+        <div class="flex justify-start">
+          <div class="max-w-[85%] rounded-xl bg-surface-container-high text-on-surface px-4 py-3 text-sm whitespace-pre-wrap border border-outline-variant/20">{{ msg }}</div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Root Cause Hypothesis -->
     {% if case.root_cause_hypothesis %}

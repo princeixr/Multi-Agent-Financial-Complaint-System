@@ -278,6 +278,31 @@ def _sanitize_packet_data(packet_data: dict[str, Any]) -> dict[str, Any]:
     return cleaned
 
 
+def _infer_currency_from_amount_packet(packet: IntakePacket) -> IntakePacket:
+    """If currency is unset but the amount string contains a symbol, set currency (e.g. $ → USD)."""
+    if (packet.currency or "").strip():
+        return packet
+    amt = (packet.amount or "").strip()
+    if not amt:
+        return packet
+    inferred: str | None = None
+    if amt.startswith("€") or amt.startswith("EUR"):
+        inferred = "EUR"
+    elif amt.startswith("£") or amt.startswith("GBP"):
+        inferred = "GBP"
+    elif amt.startswith("$") or amt.startswith("US$") or amt.startswith("USD"):
+        inferred = "USD"
+    elif "€" in amt:
+        inferred = "EUR"
+    elif "£" in amt:
+        inferred = "GBP"
+    elif "$" in amt:
+        inferred = "USD"
+    if inferred:
+        return packet.model_copy(update={"currency": inferred})
+    return packet
+
+
 def _build_issue_label(packet: IntakePacket) -> str | None:
     parts = [packet.issue_hint, packet.sub_issue_hint]
     label = " / ".join(part.strip() for part in parts if part and part.strip())
@@ -374,14 +399,13 @@ def _build_case_payload(packet: IntakePacket) -> dict:
 
 
 def _submission_offer_message(packet: IntakePacket) -> str:
-    product = (packet.product_hint or "this issue").strip()
-    issue = _build_issue_label(packet) or "the complaint"
+    """Short line — the lodge UI shows a persistent in-chat summary card with full details."""
     urgency_note = ""
     if packet.recommended_handoff is RecommendedHandoff.HUMAN_ESCALATION:
-        urgency_note = " I’m also marking it for urgent internal review."
+        urgency_note = " I'm also flagging this for urgent internal review."
     return (
-        f"I have the minimum information needed to file your complaint about {product} and {issue}."
-        f"{urgency_note} If you want, you can submit it now, or continue sharing more details or documents first."
+        "I have the minimum information needed to document your complaint."
+        f"{urgency_note} Review the summary card below — submit when you're ready, or keep chatting to add details."
     )
 
 
@@ -463,6 +487,7 @@ def process_intake_message(session_id: str, user_message: str, model_name: str |
         merged_data = state.packet.model_dump(mode="python")
         merged_data.update(_sanitize_packet_data(packet_data))
         merged = IntakePacket.model_validate(merged_data)
+        merged = _infer_currency_from_amount_packet(merged)
         merged = _compute_sufficiency(merged)
         merged.intake_case = _build_case_payload(merged)
 
@@ -479,6 +504,7 @@ def process_intake_message(session_id: str, user_message: str, model_name: str |
             state.last_agent_message = assistant_message
     except Exception:
         logger.exception("Intake turn processing failed; returning safe fallback")
+        state.packet = _infer_currency_from_amount_packet(state.packet)
         state.packet = _compute_sufficiency(state.packet)
         state.packet.intake_case = _build_case_payload(state.packet)
         state.completed = state.packet.information_sufficiency is InformationSufficiency.SUFFICIENT

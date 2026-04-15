@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Chat History{% endblock %}
+{% block title %}Session History{% endblock %}
 
 {% block content %}
 <div class="mb-10">
   <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Intake Sessions</p>
-  <h1 class="text-5xl font-headline font-extrabold tracking-tighter text-primary leading-none mb-4">Chat History</h1>
+  <h1 class="text-5xl font-headline font-extrabold tracking-tighter text-primary leading-none mb-4">Session History</h1>
   <p class="text-on-surface-variant text-lg leading-relaxed max-w-2xl">
-    Review your past interactions with the AI intake agent. Every conversation is a step toward resolution.
+    Review saved intake sessions from complaints you have filed. Each entry reflects the conversation you had while lodging a case.
   </p>
 </div>
 
@@ -27,7 +27,7 @@
   </div>
 </div>
 
-<!-- Chat History Grid -->
+<!-- Session list -->
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
   {% if cases %}
@@ -82,7 +82,7 @@
       <div class="mb-4">
         <span class="material-symbols-outlined text-primary mb-4 text-3xl">shield_person</span>
         <h4 class="text-lg font-bold text-primary font-headline mb-2">{{ case.product or ('Case #' ~ case.id[:8]) }}</h4>
-        <p class="text-sm text-on-surface-variant leading-relaxed line-clamp-3">{{ case.subject or 'Intake chat session.' }}</p>
+        <p class="text-sm text-on-surface-variant leading-relaxed line-clamp-3">{{ case.subject or 'Intake session.' }}</p>
       </div>
       <div class="mt-6 flex items-center text-primary font-bold text-xs uppercase">
         View Transcript <span class="material-symbols-outlined ml-1 text-sm">arrow_forward</span>
@@ -134,9 +134,9 @@
       <div class="w-16 h-16 aurora-gradient rounded-full flex items-center justify-center mx-auto mb-6">
         <span class="material-symbols-outlined text-3xl text-white">history</span>
       </div>
-      <h3 class="font-headline text-2xl font-bold text-on-surface mb-3">No conversations yet</h3>
+      <h3 class="font-headline text-2xl font-bold text-on-surface mb-3">No sessions yet</h3>
       <p class="text-on-surface-variant text-sm max-w-sm mx-auto mb-8">
-        Your intake chat sessions with the AI agent will appear here after you lodge a complaint.
+        Saved intake transcripts appear here after you submit a complaint from Lodge. Open a case to read the full session on the complaint detail page.
       </p>
       <a href="/complaints/new"
          class="inline-flex items-center gap-2 aurora-gradient text-white px-8 py-3 rounded-full font-bold text-sm hover:opacity-90 transition-all">

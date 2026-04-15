@@ -33,6 +33,24 @@ router = APIRouter(prefix="/api/v1", tags=["complaints"])
 router.include_router(elevenlabs_intake_router)
 
 
+def _attach_intake_transcript_to_case(case_id: str, session_id: str) -> None:
+    """Store lodge intake chat + final packet on the case for user session history."""
+    st = get_intake_session(session_id)
+    if st is None:
+        return
+    snap = {
+        "session_id": session_id,
+        "conversation_history": st.conversation_history,
+        "final_packet": json.loads(st.packet.model_dump_json()),
+    }
+    raw = json.dumps(snap, ensure_ascii=False)
+    with get_db() as db:
+        row = db.query(ComplaintCase).filter(ComplaintCase.id == case_id).first()
+        if row is not None:
+            row.intake_session_transcript_json = raw
+            db.commit()
+
+
 def _json_or_none(value: object | None) -> str | None:
     if value is None:
         return None
@@ -409,6 +427,7 @@ async def finalize_intake(request: Request, session_id: str) -> CaseRead:
         case: CaseRead = final_state["case"]
         case.user_id = request.cookies.get("user_id")
         _persist_case_and_outputs(case)
+        _attach_intake_transcript_to_case(case.id, session_id)
         return case
     except ValueError as exc:
         raise HTTPException(

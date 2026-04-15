@@ -86,6 +86,8 @@ class ComplaintCase(Base):
     review_notes = Column(Text)
     routed_to = Column(String(120))
     classification_audit_json = Column(Text)
+    # Snapshot of intake chat + packet when filed via lodge (for user session history)
+    intake_session_transcript_json = Column(Text)
 
     # Relationships
     classification = relationship(

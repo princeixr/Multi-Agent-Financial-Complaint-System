@@ -65,11 +65,21 @@ def _redirect_to_dashboard() -> RedirectResponse:
     return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
 
 
+def _post_login_redirect_url(role: str) -> str:
+    """End-users land on profile first; admins and team use the app shell home."""
+    if role == "user":
+        return "/profile"
+    return "/"
+
+
 @router.get("/login", include_in_schema=False)
 async def login_form(request: Request, created: str = ""):
     user = _get_current_user(request)
     if user is not None:
-        return _redirect_to_dashboard()
+        return RedirectResponse(
+            url=_post_login_redirect_url(user["role"]),
+            status_code=status.HTTP_302_FOUND,
+        )
 
     return templates.TemplateResponse(request, "login.html", context={
         "error": None,
@@ -106,7 +116,10 @@ async def login_submit(
         u_user_id = user.user_id
         u_company = user.company
 
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    response = RedirectResponse(
+        url=_post_login_redirect_url(u_role),
+        status_code=status.HTTP_302_FOUND,
+    )
     response.set_cookie("username", u_email, httponly=True)
     response.set_cookie("role", u_role, httponly=True)
     response.set_cookie("user_id", u_user_id, httponly=True)
@@ -213,7 +226,7 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
 
 @router.get("/queue", include_in_schema=False)
 async def admin_queue(request: Request, page: int = 1, limit: int = 15):
-    """Admin complaint queue — full table + resolution history (stitch: complaint_management_queue)."""
+    """Admin complaint queue — full table + resolution history (design: admin_complaint_queue)."""
     user = _get_current_user(request)
     if user is None:
         return _redirect_to_login()
@@ -261,6 +274,21 @@ async def admin_queue(request: Request, page: int = 1, limit: int = 15):
         "active_pipeline": active_pipeline,
         "resolved_history": resolved_history,
         "active_nav": "queue",
+        "user": user,
+    })
+
+
+@router.get("/profile", include_in_schema=False)
+async def user_profile_page(request: Request):
+    """End-user account profile and preferences."""
+    user = _get_current_user(request)
+    if user is None:
+        return _redirect_to_login()
+    if user["role"] != "user":
+        return _redirect_to_dashboard()
+
+    return templates.TemplateResponse(request, "user_profile.html", context={
+        "active_nav": "profile",
         "user": user,
     })
 
@@ -676,7 +704,7 @@ async def chat_history(request: Request, page: int = 1, limit: int = 9):
     total_pages = max(1, (total + limit - 1) // limit)
 
     return templates.TemplateResponse(request, "chat_history.html", context={
-        "active_nav": "chat_history",
+        "active_nav": "session_history",
         "user": user,
         "cases": cases,
         "total": total,
@@ -710,7 +738,7 @@ async def saved_documents(request: Request):
         latest_case = build_case_summary(latest_case_obj) if latest_case_obj else None
 
     return templates.TemplateResponse(request, "saved_documents.html", context={
-        "active_nav": "documents",
+        "active_nav": "past_complaints",
         "user": user,
         "resolved_cases": resolved_cases,
         "latest_case": latest_case,
