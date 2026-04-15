@@ -314,10 +314,24 @@
   <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant mb-1">Welcome back</p>
   <h1 class="text-4xl font-headline font-extrabold tracking-tight">Good to see you, {{ user.username | title }}.</h1>
   <p class="text-sm text-on-surface-variant mt-2">
+    {% if user.role == 'user' %}
+    Your <a href="/profile" class="text-primary hover:underline font-semibold">profile</a> is ready — or open the
+    <a href="/" class="text-primary hover:underline font-semibold">dashboard</a> for complaints.
+    {% else %}
     Head to the <a href="/" class="text-primary hover:underline font-semibold">dashboard</a> to view your complaint queue.
+    {% endif %}
   </p>
 </div>
 <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 mt-10">
+  {% if user.role == 'user' %}
+  <a href="/profile" class="rounded-xl bg-surface-container-low p-6 shadow hover:shadow-lg hover:-translate-y-1 transition-all">
+    <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <span class="material-symbols-outlined text-2xl">person</span>
+    </div>
+    <h2 class="text-base font-semibold text-on-surface">Profile</h2>
+    <p class="mt-2 text-sm text-on-surface-variant">Account settings and preferences.</p>
+  </a>
+  {% endif %}
   <a href="/" class="rounded-xl bg-surface-container-low p-6 shadow hover:shadow-lg hover:-translate-y-1 transition-all">
     <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
       <span class="material-symbols-outlined text-2xl">dashboard</span>

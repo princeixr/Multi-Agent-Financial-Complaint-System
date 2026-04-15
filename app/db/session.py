@@ -74,6 +74,7 @@ def init_db() -> None:
             ("routed_to", "VARCHAR(120)"),
             ("classification_audit_json", "TEXT"),
             ("user_id", "VARCHAR(64)"),
+            ("intake_session_transcript_json", "TEXT"),
             ("token_total", "INTEGER"),
             ("cost_estimate_usd", "DOUBLE PRECISION"),
         ]

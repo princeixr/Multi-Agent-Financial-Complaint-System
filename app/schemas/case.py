@@ -47,6 +47,11 @@ class CaseCreate(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
+    case_id: Optional[str] = Field(
+        None,
+        description="Optional preassigned case identifier used when the UI registers a complaint before backend enrichment finishes.",
+    )
+
     consumer_narrative: Optional[str] = Field(
         None,
         description="Free-text complaint narrative (may be absent if CFPB portal fields suffice).",

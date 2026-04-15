@@ -139,10 +139,9 @@
     ] %}
     {% else %}
     {% set nav_items = [
-      ("dashboard",    "/",                  "list_alt",     "My Complaints"),
+      ("profile",      "/profile",           "person",       "Profile"),
       ("lodge",        "/complaints/new",    "edit_square",  "Lodge Complaint"),
-      ("chat_history", "/chat-history",      "history",      "Chat History"),
-      ("documents",    "/documents",         "description",  "Saved Documents"),
+      ("past_complaints", "/past-complaints","history",     "Past Complaint"),
       ("resolutions",  "/resolutions",       "task_alt",     "Resolutions"),
     ] %}
     {% endif %}

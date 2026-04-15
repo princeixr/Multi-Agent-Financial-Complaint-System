@@ -6,7 +6,9 @@ import logging
 import json
 from typing import Literal
 
-from fastapi import APIRouter, Body, HTTPException, Request, Response, status
+from datetime import datetime
+
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from app.db.session import get_db
@@ -31,6 +33,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["complaints"])
 router.include_router(elevenlabs_intake_router)
+
+
+def _attach_intake_transcript_to_case(case_id: str, session_id: str) -> None:
+    """Store lodge intake chat + final packet on the case for user session history."""
+    st = get_intake_session(session_id)
+    if st is None:
+        return
+    snap = {
+        "session_id": session_id,
+        "conversation_history": st.conversation_history,
+        "final_packet": json.loads(st.packet.model_dump_json()),
+    }
+    raw = json.dumps(snap, ensure_ascii=False)
+    with get_db() as db:
+        row = db.query(ComplaintCase).filter(ComplaintCase.id == case_id).first()
+        if row is not None:
+            row.intake_session_transcript_json = raw
+            db.commit()
 
 
 def _json_or_none(value: object | None) -> str | None:
@@ -261,6 +281,146 @@ def _persist_case_and_outputs(case: CaseRead) -> None:
             )
 
 
+def _upsert_case_and_outputs(case: CaseRead) -> None:
+    """Insert or update a complaint case and its one-to-one derived outputs."""
+    with get_db() as db:
+        db_case = db.query(ComplaintCase).filter(ComplaintCase.id == case.id).first()
+        if db_case is None:
+            db_case = ComplaintCase(id=case.id)
+            db.add(db_case)
+
+        db_case.status = case.status.value if hasattr(case.status, "value") else str(case.status)
+        db_case.consumer_narrative = case.consumer_narrative or ""
+        db_case.product = case.product
+        db_case.sub_product = case.sub_product
+        db_case.company = case.company
+        db_case.user_id = case.user_id
+        db_case.state = case.state
+        db_case.zip_code = case.zip_code
+        db_case.channel = case.channel.value if hasattr(case.channel, "value") else str(case.channel)
+        db_case.submitted_at = case.submitted_at
+        db_case.routed_to = case.routed_to
+        db_case.team_assignment = case.team_assignment
+        db_case.severity_class = case.severity_class
+        db_case.sla_class = case.sla_class
+        db_case.external_schema_json = _json_or_none(case.external_schema)
+        db_case.operational_mapping_json = _json_or_none(case.operational_mapping)
+        db_case.evidence_trace_json = _json_or_none(case.evidence_trace)
+        db_case.root_cause_hypothesis_json = _json_or_none(case.root_cause_hypothesis)
+        db_case.compliance_flags_json = _json_or_none(case.compliance_flags)
+        db_case.review_notes = case.review_notes
+        db_case.classification_audit_json = _json_or_none(case.classification_audit)
+
+        classification_row = (
+            db.query(ClassificationRecord)
+            .filter(ClassificationRecord.case_id == case.id)
+            .first()
+        )
+        if case.classification:
+            c = case.classification
+            product_category = c.get("product_category")
+            if hasattr(product_category, "value"):
+                product_category = product_category.value
+            issue_type = c.get("issue_type")
+            if hasattr(issue_type, "value"):
+                issue_type = issue_type.value
+            if classification_row is None:
+                classification_row = ClassificationRecord(case_id=case.id)
+                db.add(classification_row)
+            classification_row.product_category = product_category
+            classification_row.issue_type = issue_type
+            classification_row.sub_issue = c.get("sub_issue")
+            classification_row.confidence = c.get("confidence", 0.0)
+            classification_row.reasoning = c.get("reasoning")
+            classification_row.review_recommended = bool(c.get("review_recommended", False))
+            classification_row.reason_codes_json = _json_or_none(c.get("reason_codes"))
+            classification_row.keywords_json = _json_or_none(c.get("keywords"))
+
+        risk_row = db.query(RiskRecord).filter(RiskRecord.case_id == case.id).first()
+        if case.risk_assessment:
+            r = case.risk_assessment
+            risk_level = r.get("risk_level")
+            if hasattr(risk_level, "value"):
+                risk_level = risk_level.value
+            if risk_row is None:
+                risk_row = RiskRecord(case_id=case.id)
+                db.add(risk_row)
+            risk_row.risk_level = risk_level
+            risk_row.risk_score = r.get("risk_score", 0.0)
+            risk_row.regulatory_risk = r.get("regulatory_risk", False)
+            risk_row.financial_impact_estimate = r.get("financial_impact_estimate")
+            risk_row.escalation_required = r.get("escalation_required", False)
+            risk_row.reasoning = r.get("reasoning")
+
+        resolution_row = (
+            db.query(ResolutionRecord)
+            .filter(ResolutionRecord.case_id == case.id)
+            .first()
+        )
+        if case.proposed_resolution:
+            res = case.proposed_resolution
+            recommended_action = res.get("recommended_action")
+            if hasattr(recommended_action, "value"):
+                recommended_action = recommended_action.value
+            if resolution_row is None:
+                resolution_row = ResolutionRecord(case_id=case.id)
+                db.add(resolution_row)
+            resolution_row.recommended_action = recommended_action
+            resolution_row.description = res.get("description", "")
+            resolution_row.estimated_resolution_days = res.get("estimated_resolution_days", 1)
+            resolution_row.monetary_amount = res.get("monetary_amount")
+            resolution_row.confidence = res.get("confidence", 0.0)
+            resolution_row.reasoning = res.get("reasoning", "")
+
+        db.commit()
+
+
+def _create_initial_case(case_id: str, payload: CaseCreate, user_id: str | None) -> CaseRead:
+    now = datetime.utcnow()
+    case = CaseRead(
+        id=case_id,
+        status="intake_complete",
+        consumer_narrative=payload.consumer_narrative or "",
+        product=payload.product,
+        sub_product=payload.sub_product,
+        company=payload.company,
+        user_id=user_id,
+        state=payload.state,
+        zip_code=payload.zip_code,
+        channel=payload.channel,
+        submitted_at=payload.submitted_at or now,
+        created_at=now,
+        updated_at=now,
+        cfpb_product=payload.cfpb_product,
+        cfpb_sub_product=payload.cfpb_sub_product,
+        cfpb_issue=payload.cfpb_issue,
+        cfpb_sub_issue=payload.cfpb_sub_issue,
+        review_notes="Backend processing in progress.",
+    )
+    _upsert_case_and_outputs(case)
+    return case
+
+
+def _process_case_background(
+    *,
+    case_id: str,
+    payload: dict,
+    user_id: str | None,
+    session_id: str | None,
+) -> None:
+    """Run the backend workflow after the user-visible complaint has been registered."""
+    try:
+        final_state = process_complaint(payload)
+        case: CaseRead = final_state["case"]
+        case.id = case_id
+        case.user_id = user_id
+        _upsert_case_and_outputs(case)
+        if session_id:
+            _attach_intake_transcript_to_case(case_id, session_id)
+    except Exception:
+        logger.exception("Background complaint processing failed for case_id=%s", case_id)
+
+
 @router.post(
     "/complaints",
     response_model=CaseRead,
@@ -396,7 +556,11 @@ async def intake_message(session_id: str, message: str) -> dict:
     response_model=CaseRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def finalize_intake(request: Request, session_id: str) -> CaseRead:
+async def finalize_intake(
+    request: Request,
+    session_id: str,
+    background_tasks: BackgroundTasks,
+) -> CaseRead:
     """Turn a completed intake session into a full complaint case."""
     if get_intake_session(session_id) is None:
         raise HTTPException(
@@ -405,10 +569,17 @@ async def finalize_intake(request: Request, session_id: str) -> CaseRead:
         )
     try:
         case_create, _state = finalize_intake_session(session_id)
-        final_state = process_complaint(case_create.model_dump())
-        case: CaseRead = final_state["case"]
-        case.user_id = request.cookies.get("user_id")
-        _persist_case_and_outputs(case)
+        case_id = CaseRead().id
+        user_id = request.cookies.get("user_id")
+        case = _create_initial_case(case_id, case_create, user_id)
+        _attach_intake_transcript_to_case(case.id, session_id)
+        background_tasks.add_task(
+            _process_case_background,
+            case_id=case.id,
+            payload={**case_create.model_dump(), "case_id": case.id},
+            user_id=user_id,
+            session_id=session_id,
+        )
         return case
     except ValueError as exc:
         raise HTTPException(

@@ -26,6 +26,11 @@
   .status-label { font-weight: 700; color: rgb(var(--on-surface-variant)); min-width: 6rem; flex-shrink: 0; }
   .status-value { color: rgb(var(--on-surface)); }
   .status-missing { color: rgb(var(--error)); }
+
+  /* Persistent intake summary card (user_lodge_complaint) */
+  .intake-summary-card {
+    box-shadow: 0 4px 20px rgba(27, 28, 26, 0.06), 0 8px 40px rgba(27, 28, 26, 0.04);
+  }
 </style>
 {% endblock %}
 
@@ -79,26 +84,32 @@
       <!-- Messages injected by JS -->
     </div>
 
-    <!-- Decision actions (shown when AI deems intake complete) -->
-    <div id="decision-actions"
-         class="hidden px-8 pb-4 gap-3 justify-end">
-      <button id="not-yet-btn"
-              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface text-sm font-semibold
-                     hover:bg-surface-container-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-        <span class="material-symbols-outlined text-lg">edit_note</span>
-        Add More Details
-      </button>
-      <button id="finalize-btn"
-              class="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg aurora-gradient text-white text-sm font-bold
-                     hover:opacity-90 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
-        <span class="material-symbols-outlined text-lg">verified</span>
-        Submit Complaint
-      </button>
-    </div>
+    <!-- Submit / refine actions live inside the in-chat summary card once intake is sufficient -->
 
     <!-- Error message -->
     <div id="chat-error"
          class="hidden mx-8 mb-3 rounded-xl bg-error-container/70 px-4 py-3 text-sm text-on-error-container">
+    </div>
+
+    <!-- Success modal after complaint is registered (stays on lodge; chat resets) -->
+    <div id="submit-success-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-md w-full p-8 border border-outline-variant/20">
+        <div class="w-14 h-14 rounded-full bg-secondary-container flex items-center justify-center mx-auto mb-4">
+          <span class="material-symbols-outlined text-on-secondary-container text-3xl" style="font-variation-settings:'FILL' 1;">check_circle</span>
+        </div>
+        <h3 class="font-headline font-bold text-xl text-center text-on-surface mb-2">Complaint registered</h3>
+        <p class="text-sm text-on-surface-variant text-center mb-6">
+          Your complaint has been filed. It now appears under <strong>Past Complaint</strong> with the saved intake chat and payload.
+        </p>
+        <div class="rounded-xl bg-surface-container-low p-4 mb-6 space-y-2 text-sm">
+          <div class="flex justify-between gap-2"><span class="text-on-surface-variant">Complaint ID</span><span class="font-mono font-bold text-primary" id="success-complaint-id">—</span></div>
+          <div class="flex justify-between gap-2"><span class="text-on-surface-variant">Submitted</span><span class="text-on-surface" id="success-submitted-at">—</span></div>
+        </div>
+        <button type="button" id="submit-success-dismiss"
+                class="w-full aurora-gradient text-white py-3 rounded-xl font-headline font-bold text-sm hover:opacity-90 transition-opacity">
+          Continue
+        </button>
+      </div>
     </div>
 
     <!-- Input bar -->
@@ -151,21 +162,21 @@
     </div>
     {% endif %}
 
-    <!-- Quick Actions (finalize section mirrors the bottom bar) -->
+    <!-- Quick Actions -->
     <div class="mb-8">
       <h3 class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Quick Actions</h3>
       <div class="space-y-2">
-        <a href="/"
+        <a href="/past-complaints"
            class="flex items-center gap-3 px-4 py-3 bg-surface-container-highest rounded-xl text-xs font-bold text-primary
                   hover:bg-surface-container-high transition-colors">
           <span class="material-symbols-outlined text-lg">list_alt</span>
-          View My Complaints
+          View Past Complaint
         </a>
-        <a href="/chat-history"
+        <a href="/past-complaints"
            class="flex items-center gap-3 px-4 py-3 bg-surface-container-highest rounded-xl text-xs font-bold text-primary
                   hover:bg-surface-container-high transition-colors">
           <span class="material-symbols-outlined text-lg">history</span>
-          Chat History
+          Complaint Sessions
         </a>
       </div>
     </div>
@@ -217,9 +228,6 @@
     const inputEl          = document.getElementById('chat-input');
     const sendBtn          = document.getElementById('send-btn');
     const errorEl          = document.getElementById('chat-error');
-    const finalizeBtn      = document.getElementById('finalize-btn');
-    const notYetBtn        = document.getElementById('not-yet-btn');
-    const decisionActionsEl= document.getElementById('decision-actions');
     const newSessionBtn    = document.getElementById('new-session-btn');
     const packetStatusEl   = document.getElementById('packet-status');
     const voiceModeEl      = document.getElementById('voice-mode');
@@ -237,7 +245,6 @@
     let currentAudioUrl = null;
 
     let sessionId = null;
-    let lastCompleted = false;
     let busy = false;
     let utteranceProcessing = false;
 
@@ -288,15 +295,15 @@
     };
 
     const scheduleNextListen = () => {
-      if (!voiceModeEl.checked || !voiceLoopActive || !sessionId || busy || lastCompleted) return;
+      if (!voiceModeEl.checked || !voiceLoopActive || !sessionId || busy) return;
       window.setTimeout(() => {
-        if (!voiceModeEl.checked || !voiceLoopActive || !sessionId || busy || lastCompleted) return;
+        if (!voiceModeEl.checked || !voiceLoopActive || !sessionId || busy) return;
         startUtterance();
       }, 450);
     };
 
     const startUtterance = () => {
-      if (!SpeechRecognition || !voiceModeEl.checked || !voiceLoopActive || !sessionId || busy || lastCompleted) return;
+      if (!SpeechRecognition || !voiceModeEl.checked || !voiceLoopActive || !sessionId || busy) return;
       stopPlayback();
       utteranceBuffer = '';
       try { recognition.start(); } catch (e) {
@@ -374,18 +381,176 @@
       syncMicAvailability();
     });
 
-    const hideDecisionActions = () => {
-      decisionActionsEl.classList.add('hidden');
-      decisionActionsEl.classList.remove('flex');
-      finalizeBtn.disabled = true;
-      notYetBtn.disabled = true;
+    const escapeHtml = (s) => String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const disp = (v) => {
+      if (v === null || v === undefined || v === '') return '—';
+      if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+      return escapeHtml(String(v));
     };
 
-    const showDecisionActions = () => {
-      decisionActionsEl.classList.remove('hidden');
-      decisionActionsEl.classList.add('flex');
-      finalizeBtn.disabled = false;
-      notYetBtn.disabled = false;
+    /** One persistent summary card in the thread; updated whenever intake stays submission-ready. */
+    const upsertIntakeSummaryCard = (packet) => {
+      if (!packet) return;
+      const narrRaw = (packet.narrative_for_case || '').trim();
+      const custRaw = (packet.customer_summary || '').trim();
+      const narr = narrRaw || custRaw || '—';
+      const prod = (packet.product_hint || '').trim() || '—';
+      const subIss = (packet.sub_issue_hint || '').trim() || '—';
+      const iss = (packet.issue_hint || '').trim() || '—';
+      const amtRaw = packet.amount;
+      const amtStr = amtRaw != null && String(amtRaw).trim() !== '' ? String(amtRaw).trim() : '';
+      const curStr = (packet.currency || '').trim();
+      const amtDisp = amtStr
+        ? escapeHtml(amtStr) + (curStr ? ` <span class="text-xs font-medium text-on-surface-variant">(${escapeHtml(curStr)})</span>` : '')
+        : '—';
+      const dateInc = (packet.date_of_incident || '').trim();
+      const merchant = (packet.merchant_or_counterparty || '').trim();
+      const desired = (packet.desired_resolution || '').trim();
+      const intent = packet.intent || '—';
+      const urgency = packet.urgency || '—';
+      const showCust = custRaw && custRaw !== narrRaw;
+      const escList = Array.isArray(packet.escalation_reasons) ? packet.escalation_reasons.filter(Boolean) : [];
+      const ref = sessionId ? sessionId.slice(0, 8).toUpperCase() : '—';
+      const suff = packet.information_sufficiency || '';
+      const badgeClass = suff === 'sufficient'
+        ? 'bg-secondary-container text-on-secondary-container'
+        : 'bg-surface-container-high text-on-surface-variant';
+
+      let root = document.getElementById('intake-summary-card-root');
+      if (!root) {
+        root = document.createElement('div');
+        root.id = 'intake-summary-card-root';
+        messagesEl.appendChild(root);
+      }
+      root.className = 'flex gap-4 max-w-5xl w-full';
+      root.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shrink-0 shadow-sm border-2 border-surface self-start">
+          <span class="material-symbols-outlined text-on-secondary-container text-lg" style="font-variation-settings:'FILL' 1;">auto_awesome</span>
+        </div>
+        <div class="flex-1 intake-summary-card bg-surface-container-lowest rounded-xl border border-outline-variant/25 p-6 text-on-surface">
+          <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+            <div>
+              <h3 class="font-headline font-bold text-lg text-primary leading-tight">Complaint intake summary</h3>
+              <p class="text-xs text-on-surface-variant mt-1">Session <span class="font-mono">#${escapeHtml(ref)}</span></p>
+            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full ${badgeClass}">Ready to submit</span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div class="rounded-lg bg-surface-container-low px-3 py-2.5 col-span-2 sm:col-span-1">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Amount</p>
+              <p class="text-sm font-semibold text-on-surface mt-0.5 break-words">${amtDisp}</p>
+            </div>
+            <div class="rounded-lg bg-surface-container-low px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Currency</p>
+              <p class="text-sm font-semibold text-secondary mt-0.5">${curStr ? escapeHtml(curStr) : '—'}</p>
+            </div>
+            <div class="rounded-lg bg-surface-container-low px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Urgency</p>
+              <p class="text-sm font-semibold text-on-surface mt-0.5">${disp(urgency)}</p>
+            </div>
+            <div class="rounded-lg bg-surface-container-low px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Sufficiency</p>
+              <p class="text-sm font-semibold text-secondary mt-0.5">${escapeHtml(suff || '—')}</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
+            <div class="rounded-lg bg-surface-container-low/60 px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase text-on-surface-variant">Date of incident</p>
+              <p class="font-medium mt-0.5">${dateInc ? escapeHtml(dateInc) : '—'}</p>
+            </div>
+            <div class="rounded-lg bg-surface-container-low/60 px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase text-on-surface-variant">Merchant / counterparty</p>
+              <p class="font-medium mt-0.5 break-words">${merchant ? escapeHtml(merchant) : '—'}</p>
+            </div>
+            <div class="rounded-lg bg-surface-container-low/60 px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase text-on-surface-variant">Intent</p>
+              <p class="font-medium mt-0.5">${disp(intent)}</p>
+            </div>
+            <div class="rounded-lg bg-surface-container-low/60 px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase text-on-surface-variant">Product hint</p>
+              <p class="font-medium mt-0.5 truncate">${escapeHtml(prod)}</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-xs">
+            <div class="flex justify-between gap-2 rounded-lg border border-outline-variant/15 px-3 py-2 bg-surface-container-lowest">
+              <span class="text-on-surface-variant font-bold">Prior contact</span>
+              <span class="font-semibold text-on-surface">${disp(packet.prior_contact_attempted)}</span>
+            </div>
+            <div class="flex justify-between gap-2 rounded-lg border border-outline-variant/15 px-3 py-2 bg-surface-container-lowest">
+              <span class="text-on-surface-variant font-bold">Supporting docs</span>
+              <span class="font-semibold text-on-surface">${disp(packet.has_supporting_docs)}</span>
+            </div>
+            <div class="flex justify-between gap-2 rounded-lg border border-outline-variant/15 px-3 py-2 bg-surface-container-lowest">
+              <span class="text-on-surface-variant font-bold">Acct / ref on file</span>
+              <span class="font-semibold text-on-surface">${disp(packet.account_or_reference_available)}</span>
+            </div>
+          </div>
+          ${desired ? `
+          <div class="mb-4 rounded-lg bg-primary-fixed/10 border border-primary/15 px-4 py-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">Desired resolution</p>
+            <p class="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">${escapeHtml(desired)}</p>
+          </div>` : ''}
+          ${showCust ? `
+          <div class="mb-4 rounded-lg bg-surface-container-low px-4 py-3 border border-outline-variant/15">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">Customer summary</p>
+            <p class="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">${escapeHtml(custRaw)}</p>
+          </div>` : ''}
+          ${escList.length ? `
+          <div class="mb-4 flex flex-wrap gap-1.5 items-center">
+            <span class="text-[10px] font-bold uppercase text-on-surface-variant">Escalation flags</span>
+            ${escList.map((e) => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-error-container/40 text-on-error-container font-semibold">${escapeHtml(String(e))}</span>`).join('')}
+          </div>` : ''}
+          <div class="mb-5">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-2 flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">subject</span> Issue narration
+            </p>
+            <p class="text-sm leading-relaxed text-on-surface whitespace-pre-wrap rounded-lg bg-surface-container-low/80 p-4 border border-outline-variant/15">${escapeHtml(narr)}</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
+            <div>
+              <span class="text-[10px] font-bold uppercase text-on-surface-variant">Issue hint</span>
+              <p class="font-medium mt-0.5">${escapeHtml(iss)}</p>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold uppercase text-on-surface-variant">Sub-issue hint</span>
+              <p class="font-medium mt-0.5">${escapeHtml(subIss)}</p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3 pt-2 border-t border-outline-variant/15">
+            <button type="button" id="intake-card-submit"
+              class="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg aurora-gradient text-white text-sm font-bold hover:opacity-90 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+              <span class="material-symbols-outlined text-lg">verified</span>
+              Submit complaint
+            </button>
+            <button type="button" id="intake-card-continue"
+              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface text-sm font-semibold border border-outline-variant/30 hover:bg-surface-container-high transition-colors">
+              <span class="material-symbols-outlined text-lg">edit_note</span>
+              Continue adding details
+            </button>
+          </div>
+        </div>`;
+
+      const sub = document.getElementById('intake-card-submit');
+      const cont = document.getElementById('intake-card-continue');
+      if (sub) sub.addEventListener('click', (e) => { e.preventDefault(); finalize(); }, { once: false });
+      if (cont) cont.addEventListener('click', (e) => { e.preventDefault(); continueRefining(); }, { once: false });
+      messagesEl.appendChild(root);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    };
+
+    const removeIntakeSummaryCard = () => {
+      const root = document.getElementById('intake-summary-card-root');
+      if (root) root.remove();
+    };
+
+    const continueRefining = () => {
+      inputEl.focus();
+      inputEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
     };
 
     const setError = (msg) => {
@@ -402,6 +567,8 @@
       const urgency  = packet.urgency || 'medium';
       const product  = packet.product_hint || '—';
       const issue    = packet.sub_issue_hint || packet.issue_hint || '—';
+      const cur      = packet.currency || '—';
+      const when     = packet.date_of_incident || '—';
       const missing  = packet.missing_fields && packet.missing_fields.length ? packet.missing_fields : [];
       const suffColor = suff === 'sufficient' ? 'text-secondary' : 'text-error';
       packetStatusEl.innerHTML = `
@@ -409,13 +576,15 @@
         <div class="status-item"><span class="status-label">Sufficiency</span><span class="status-value ${suffColor} font-bold">${suff}</span></div>
         <div class="status-item"><span class="status-label">Urgency</span><span class="status-value">${urgency}</span></div>
         <div class="status-item"><span class="status-label">Product</span><span class="status-value">${product}</span></div>
+        <div class="status-item"><span class="status-label">Currency</span><span class="status-value">${cur}</span></div>
+        <div class="status-item"><span class="status-label">Date</span><span class="status-value">${when}</span></div>
         <div class="status-item"><span class="status-label">Issue</span><span class="status-value">${issue}</span></div>
         <div class="status-item"><span class="status-label">Handoff</span><span class="status-value">${handoff}</span></div>
         ${missing.length ? `<div class="status-item"><span class="status-label">Missing</span><span class="status-missing">${missing.join(', ')}</span></div>` : ''}
       `;
     };
 
-    /* ─── Append a chat message using the ai_agent_workspace design ─── */
+    /* ─── Append a chat message using the user_lodge_complaint design ─── */
     const appendMessage = (role, text) => {
       const row = document.createElement('div');
 
@@ -462,10 +631,9 @@
       stopPlayback();
       voiceLoopActive = false;
       stopVoiceRecognition();
-      hideDecisionActions();
-      lastCompleted = false;
       sessionId = null;
       messagesEl.innerHTML = '';
+      removeIntakeSummaryCard();
       packetStatusEl.innerHTML = '<div class="text-xs text-on-surface-variant">Starting intake session…</div>';
       sendBtn.disabled = true;
       busy = true;
@@ -524,17 +692,39 @@
         const reply = data.agent_message || '';
         appendMessage('agent', reply);
         setPacketStatus(data.packet || {});
-        lastCompleted = !!data.completed;
+        if (data.completed) {
+          upsertIntakeSummaryCard(data.packet || {});
+        } else {
+          removeIntakeSummaryCard();
+        }
         if (voiceModeEl.checked && INTAKE_TTS_ENABLED) await playAgentTts(reply);
-        lastCompleted ? showDecisionActions() : hideDecisionActions();
       } catch (e) {
         setError(e && e.message ? e.message : 'Intake failed. Please try again.');
       } finally {
         busy = false;
         if (sessionId) sendBtn.disabled = false;
         syncMicAvailability();
-        if (voiceModeEl.checked && voiceLoopActive && sessionId && !lastCompleted) scheduleNextListen();
+        if (voiceModeEl.checked && voiceLoopActive && sessionId) scheduleNextListen();
       }
+    };
+
+    const showSubmitSuccessModal = (body) => {
+      const el = document.getElementById('submit-success-modal');
+      const cidEl = document.getElementById('success-complaint-id');
+      const subEl = document.getElementById('success-submitted-at');
+      const cid = body && body.id ? String(body.id) : '';
+      if (cidEl) cidEl.textContent = cid ? '#' + cid.slice(0, 12) : '—';
+      if (subEl) {
+        const raw = body && body.submitted_at;
+        if (!raw) subEl.textContent = '—';
+        else {
+          const d = new Date(raw);
+          subEl.textContent = Number.isNaN(d.getTime())
+            ? String(raw)
+            : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        }
+      }
+      if (el) el.classList.remove('hidden');
     };
 
     const finalize = async () => {
@@ -542,35 +732,34 @@
       setError(null);
       voiceLoopActive = false;
       stopVoiceRecognition();
-      finalizeBtn.disabled = true;
+      const sub = document.getElementById('intake-card-submit');
+      const cont = document.getElementById('intake-card-continue');
+      if (sub) sub.disabled = true;
+      if (cont) cont.disabled = true;
       busy = true;
       try {
         const resp = await fetch(`/api/v1/intake/session/${encodeURIComponent(sessionId)}/finalize`, { method: 'POST', credentials: 'same-origin' });
         const body = await resp.json().catch(() => ({}));
         if (!resp.ok) throw new Error(body.detail || 'Finalize failed.');
-        window.location.href = `/complaints/${body.id}`;
+        removeIntakeSummaryCard();
+        messagesEl.innerHTML = '';
+        packetStatusEl.innerHTML = '<div class="text-xs text-on-surface-variant">Starting intake session…</div>';
+        sessionId = null;
+        showSubmitSuccessModal(body);
+        await startSession();
       } catch (e) {
         setError(e && e.message ? e.message : 'Submit failed.');
-        finalizeBtn.disabled = false;
-        notYetBtn.disabled = false;
+        if (sub) sub.disabled = false;
+        if (cont) cont.disabled = false;
       } finally { busy = false; }
     };
 
-    const notYet = async () => {
-      if (busy) return;
-      hideDecisionActions();
-      lastCompleted = false;
-      const msg = 'Understood. You can keep adding any details or supporting information you want included before filing.';
-      appendMessage('agent', msg);
-      if (voiceModeEl.checked && INTAKE_TTS_ENABLED) await playAgentTts(msg);
-      if (sessionId) sendBtn.disabled = false;
-      if (voiceModeEl.checked && voiceLoopActive && sessionId) scheduleNextListen();
-    };
+    document.getElementById('submit-success-dismiss')?.addEventListener('click', () => {
+      document.getElementById('submit-success-modal')?.classList.add('hidden');
+    });
 
     newSessionBtn.addEventListener('click', () => startSession());
     sendBtn.addEventListener('click', () => sendMessage());
-    finalizeBtn.addEventListener('click', finalize);
-    notYetBtn.addEventListener('click', notYet);
 
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }

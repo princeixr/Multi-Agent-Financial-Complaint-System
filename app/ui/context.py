@@ -27,6 +27,40 @@ def _safe_json_load(value: str | None) -> dict | list | None:
         return None
 
 
+def _extract_supporting_documents(transcript: dict | None) -> list[dict]:
+    if not isinstance(transcript, dict):
+        return []
+
+    candidates: list[object] = []
+    final_packet = transcript.get("final_packet")
+    if isinstance(final_packet, dict):
+        candidates.extend([
+            final_packet.get("documents"),
+            final_packet.get("attachments"),
+            final_packet.get("uploaded_files"),
+            final_packet.get("files"),
+        ])
+        intake_case = final_packet.get("intake_case")
+        if isinstance(intake_case, dict):
+            candidates.extend([
+                intake_case.get("documents"),
+                intake_case.get("attachments"),
+                intake_case.get("uploaded_files"),
+                intake_case.get("files"),
+            ])
+
+    documents: list[dict] = []
+    for candidate in candidates:
+        if not isinstance(candidate, list):
+            continue
+        for item in candidate:
+            if isinstance(item, dict):
+                documents.append(item)
+            elif isinstance(item, str):
+                documents.append({"name": item})
+    return documents
+
+
 def build_case_summary(db_case: ComplaintCase) -> dict:
     """Build a lightweight summary dict for the dashboard table."""
     cls = db_case.classification
@@ -36,6 +70,14 @@ def build_case_summary(db_case: ComplaintCase) -> dict:
     subject = narrative[:200] + "..." if len(narrative) > 200 else narrative
 
     res = db_case.resolution
+    transcript = _safe_json_load(getattr(db_case, "intake_session_transcript_json", None))
+    final_packet = transcript.get("final_packet") if isinstance(transcript, dict) else None
+    conversation_history = (
+        transcript.get("conversation_history")
+        if isinstance(transcript, dict) and isinstance(transcript.get("conversation_history"), list)
+        else []
+    )
+    supporting_documents = _extract_supporting_documents(transcript)
 
     return {
         "id": db_case.id,
@@ -52,6 +94,15 @@ def build_case_summary(db_case: ComplaintCase) -> dict:
         "severity_class": db_case.severity_class,
         "estimated_resolution_days": res.estimated_resolution_days if res else None,
         "monetary_amount": res.monetary_amount if res else None,
+        "intake_session_transcript": transcript if isinstance(transcript, dict) else None,
+        "conversation_history": conversation_history,
+        "intake_payload": final_packet if isinstance(final_packet, dict) else None,
+        "supporting_documents": supporting_documents,
+        "has_supporting_docs": (
+            bool(final_packet.get("has_supporting_docs"))
+            if isinstance(final_packet, dict)
+            else False
+        ),
     }
 
 
@@ -149,6 +200,9 @@ def build_case_detail(db_case: ComplaintCase) -> dict:
         "routed_to": db_case.routed_to,
         "team_assignment": db_case.team_assignment,
         "severity_class": db_case.severity_class,
+        "intake_session_transcript": _safe_json_load(
+            getattr(db_case, "intake_session_transcript_json", None)
+        ),
     }
 
 

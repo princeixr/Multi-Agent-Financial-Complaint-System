@@ -65,11 +65,56 @@ def _redirect_to_dashboard() -> RedirectResponse:
     return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
 
 
+def _build_user_session_history_context(
+    db,
+    user: dict[str, str | None],
+    selected_case_id: str | None = None,
+    page: int = 1,
+    limit: int = 12,
+) -> dict:
+    offset = (page - 1) * limit
+    query = (
+        db.query(ComplaintCase)
+        .filter(ComplaintCase.user_id == user.get("user_id"))
+        .order_by(ComplaintCase.created_at.desc())
+    )
+    total = query.count()
+    rows = query.offset(offset).limit(limit).all()
+    cases = [build_case_summary(row) for row in rows]
+
+    selected_case = None
+    if cases:
+        selected_case = next((case for case in cases if case["id"] == selected_case_id), cases[0])
+
+    total_pages = max(1, (total + limit - 1) // limit)
+    return {
+        "active_nav": "past_complaints",
+        "user": user,
+        "cases": cases,
+        "selected_case": selected_case,
+        "selected_case_id": selected_case["id"] if selected_case else None,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
+
+
+def _post_login_redirect_url(role: str) -> str:
+    """End-users land on profile first; admins and team use the app shell home."""
+    if role == "user":
+        return "/profile"
+    return "/"
+
+
 @router.get("/login", include_in_schema=False)
 async def login_form(request: Request, created: str = ""):
     user = _get_current_user(request)
     if user is not None:
-        return _redirect_to_dashboard()
+        return RedirectResponse(
+            url=_post_login_redirect_url(user["role"]),
+            status_code=status.HTTP_302_FOUND,
+        )
 
     return templates.TemplateResponse(request, "login.html", context={
         "error": None,
@@ -106,7 +151,10 @@ async def login_submit(
         u_user_id = user.user_id
         u_company = user.company
 
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    response = RedirectResponse(
+        url=_post_login_redirect_url(u_role),
+        status_code=status.HTTP_302_FOUND,
+    )
     response.set_cookie("username", u_email, httponly=True)
     response.set_cookie("role", u_role, httponly=True)
     response.set_cookie("user_id", u_user_id, httponly=True)
@@ -176,6 +224,16 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
                 "user": user,
             })
 
+        if user["role"] == "user":
+            context = _build_user_session_history_context(
+                db,
+                user,
+                selected_case_id=request.query_params.get("case"),
+                page=page,
+                limit=limit,
+            )
+            return templates.TemplateResponse(request, "chat_history.html", context=context)
+
         query = db.query(ComplaintCase).order_by(ComplaintCase.created_at.desc())
         if user["role"] == "team":
             query = query.filter(ComplaintCase.team_assignment == user.get("company"))
@@ -213,7 +271,7 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
 
 @router.get("/queue", include_in_schema=False)
 async def admin_queue(request: Request, page: int = 1, limit: int = 15):
-    """Admin complaint queue — full table + resolution history (stitch: complaint_management_queue)."""
+    """Admin complaint queue — full table + resolution history (design: admin_complaint_queue)."""
     user = _get_current_user(request)
     if user is None:
         return _redirect_to_login()
@@ -265,6 +323,21 @@ async def admin_queue(request: Request, page: int = 1, limit: int = 15):
     })
 
 
+@router.get("/profile", include_in_schema=False)
+async def user_profile_page(request: Request):
+    """End-user account profile and preferences."""
+    user = _get_current_user(request)
+    if user is None:
+        return _redirect_to_login()
+    if user["role"] != "user":
+        return _redirect_to_dashboard()
+
+    return templates.TemplateResponse(request, "user_profile.html", context={
+        "active_nav": "profile",
+        "user": user,
+    })
+
+
 @router.get("/brand", include_in_schema=False)
 async def brand_page(request: Request):
     return templates.TemplateResponse(request, "brand.html", context={
@@ -293,6 +366,11 @@ async def complaint_detail(request: Request, case_id: str):
     user = _get_current_user(request)
     if user is None:
         return _redirect_to_login()
+    if user["role"] == "user":
+        return RedirectResponse(
+            url=f"/past-complaints?case={case_id}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
     with get_db() as db:
         db_case = db.query(ComplaintCase).filter(ComplaintCase.id == case_id).first()
@@ -691,64 +769,27 @@ async def chat_history(request: Request, page: int = 1, limit: int = 9):
         return _redirect_to_login()
     if user["role"] not in ("user",):
         return _redirect_to_dashboard()
-
-    offset = (page - 1) * limit
-
-    with get_db() as db:
-        query = (
-            db.query(ComplaintCase)
-            .filter(ComplaintCase.user_id == user.get("user_id"))
-            .order_by(ComplaintCase.created_at.desc())
-        )
-        total = query.count()
-        rows = query.offset(offset).limit(limit).all()
-        cases = [build_case_summary(row) for row in rows]
-
-    total_pages = max(1, (total + limit - 1) // limit)
-
-    return templates.TemplateResponse(request, "chat_history.html", context={
-        "active_nav": "chat_history",
-        "user": user,
-        "cases": cases,
-        "total": total,
-        "page": page,
-        "total_pages": total_pages,
-    })
+    return RedirectResponse(url="/past-complaints", status_code=status.HTTP_302_FOUND)
 
 
+@router.get("/past-complaints", include_in_schema=False)
 @router.get("/documents", include_in_schema=False)
-async def saved_documents(request: Request):
-    """User's saved documents — AI-generated resolution briefs."""
+async def saved_documents(request: Request, page: int = 1, limit: int = 12):
+    """Unified user complaint history with transcript, intake payload, and documents."""
     user = _get_current_user(request)
     if user is None:
         return _redirect_to_login()
     if user["role"] not in ("user",):
         return _redirect_to_dashboard()
-
-    import datetime
-
     with get_db() as db:
-        all_cases = (
-            db.query(ComplaintCase)
-            .filter(ComplaintCase.user_id == user.get("user_id"))
-            .order_by(ComplaintCase.created_at.desc())
-            .all()
+        context = _build_user_session_history_context(
+            db,
+            user,
+            selected_case_id=request.query_params.get("case"),
+            page=page,
+            limit=limit,
         )
-        resolved_cases = [
-            build_case_summary(c) for c in all_cases if c.status in ("resolved", "closed")
-        ]
-        latest_case_obj = all_cases[0] if all_cases else None
-        latest_case = build_case_summary(latest_case_obj) if latest_case_obj else None
-
-    return templates.TemplateResponse(request, "saved_documents.html", context={
-        "active_nav": "documents",
-        "user": user,
-        "resolved_cases": resolved_cases,
-        "latest_case": latest_case,
-        "doc_count": len(resolved_cases),
-        "ai_doc_count": len(resolved_cases),
-        "today_date": datetime.date.today().strftime("%B %d, %Y"),
-    })
+    return templates.TemplateResponse(request, "chat_history.html", context=context)
 
 
 @router.get("/resolutions", include_in_schema=False)
