@@ -31,8 +31,8 @@
         <span class="text-on-surface-variant text-sm">{{ today_date or '' }}</span>
       </div>
       {% if latest_case %}
-      <h3 class="font-headline text-3xl font-bold text-primary mb-2">Resolution_Summary_{{ latest_case.id[:8] }}.pdf</h3>
-      <p class="text-on-surface-variant mb-8 max-w-md">AI-generated resolution brief for complaint {{ latest_case.id[:8] }}. Includes root cause analysis and recommended action steps.</p>
+      <h3 class="font-headline text-3xl font-bold text-primary mb-2">Resolution_Summary_{{ latest_case.public_case_id or latest_case.id[:8] }}.pdf</h3>
+      <p class="text-on-surface-variant mb-8 max-w-md">AI-generated resolution brief for complaint {{ latest_case.public_case_id or latest_case.id[:8] }}. Includes root cause analysis and recommended action steps.</p>
       {% else %}
       <h3 class="font-headline text-3xl font-bold text-primary mb-2">No documents yet</h3>
       <p class="text-on-surface-variant mb-8 max-w-md">Once your complaints are processed, AI-generated resolution documents will appear here for download.</p>
@@ -92,7 +92,7 @@
             <span class="material-symbols-outlined text-primary">picture_as_pdf</span>
           </div>
           <div>
-            <h4 class="font-bold text-on-surface">Resolution_{{ case.id[:8] }}.pdf</h4>
+            <h4 class="font-bold text-on-surface">Resolution_{{ case.public_case_id or case.id[:8] }}.pdf</h4>
             <div class="flex gap-4 mt-1">
               <span class="text-xs text-on-surface-variant flex items-center gap-1">
                 <span class="material-symbols-outlined text-xs">calendar_today</span>

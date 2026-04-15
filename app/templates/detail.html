@@ -21,14 +21,14 @@
     {% if user.role == 'user' %}My Complaints{% elif user.role == 'team' %}My Queue{% else %}Queue{% endif %}
   </a>
   <span class="text-on-surface-variant/30">/</span>
-  <span class="text-xs font-mono text-primary font-bold">#{{ case.id[:12] }}</span>
+  <span class="text-xs font-mono text-primary font-bold">#{{ case.public_case_id or case.id[:12] }}</span>
 </div>
 
 <!-- Page Header -->
 <div class="flex items-start justify-between mb-10">
   <div>
     <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-1">AI Agent Workspace</p>
-    <h1 class="text-3xl font-headline font-extrabold tracking-tight text-on-surface">Case #{{ case.id[:12] }}</h1>
+    <h1 class="text-3xl font-headline font-extrabold tracking-tight text-on-surface">Case #{{ case.public_case_id or case.id[:12] }}</h1>
     <p class="text-sm text-on-surface-variant mt-1.5 flex items-center gap-3">
       {% if case.submitted_at %}
       <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">schedule</span>{{ case.submitted_at }}</span>

@@ -9,6 +9,10 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.documents.service import build_case_document_summary
+from app.evals.service import (
+    build_evaluation_case_detail as _build_evaluation_case_detail,
+    build_evaluation_dashboard_data as _build_evaluation_dashboard_data,
+)
 from app.db.models import (
     ComplaintCase,
     ClassificationRecord,
@@ -120,6 +124,7 @@ def build_case_summary(db_case: ComplaintCase) -> dict:
 
     return {
         "id": db_case.id,
+        "public_case_id": getattr(db_case, "public_case_id", None) or db_case.id[:12].upper(),
         "subject": subject,
         "status": db_case.status or "unknown",
         "product": cls.product_category if cls else None,
@@ -222,6 +227,7 @@ def build_case_detail(db_case: ComplaintCase) -> dict:
 
     return {
         "id": db_case.id,
+        "public_case_id": getattr(db_case, "public_case_id", None) or db_case.id[:12].upper(),
         "status": db_case.status or "unknown",
         "consumer_narrative": db_case.consumer_narrative,
         "product": db_case.product,
@@ -342,3 +348,46 @@ def build_settings_data() -> dict:
             "root_cause_controls": [],
             "policy_snippets": [],
         }
+
+
+def build_evaluation_data() -> dict:
+    """Load benchmark datasets, recent eval runs, and disagreement queue."""
+    try:
+        return _build_evaluation_dashboard_data()
+    except Exception as e:
+        logger.warning("Could not load evaluation dashboard data: %s", e)
+        return {
+            "terms": [],
+            "source_datasets": [],
+            "datasets": [],
+            "recent_runs": [],
+            "open_disagreements": [],
+            "coverage": {
+                "products": {},
+                "issues": {},
+                "narrative_lengths": {},
+            },
+            "dimension_scores": {
+                "system_vs_gold": [],
+                "judge_vs_gold": [],
+            },
+            "disagreement_reason_counts": {},
+            "summary": {
+                "source_dataset_count": 0,
+                "dataset_count": 0,
+                "recent_run_count": 0,
+                "open_disagreement_count": 0,
+                "pass_count": 0,
+                "needs_review_count": 0,
+                "fail_count": 0,
+            },
+        }
+
+
+def build_evaluation_case_data(eval_case_id: str) -> dict | None:
+    """Load the full evaluation-case detail payload."""
+    try:
+        return _build_evaluation_case_detail(eval_case_id)
+    except Exception as e:
+        logger.warning("Could not load evaluation case detail: %s", e)
+        return None

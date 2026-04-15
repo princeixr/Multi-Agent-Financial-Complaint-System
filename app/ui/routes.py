@@ -25,11 +25,15 @@ from app.ui.context import (
     build_case_summary,
     build_case_detail,
     build_analytics_data,
+    build_evaluation_case_data,
+    build_evaluation_data,
     build_settings_data,
     build_admin_overview_data,
     _TERMINAL_STATUSES,
 )
+from app.evals.service import run_dataset_benchmark
 from app.env_elevenlabs import intake_tts_configured
+from app.utils.case_ids import resolve_case_record
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +88,13 @@ def _build_user_session_history_context(
 
     selected_case = None
     if cases:
-        selected_case = next((case for case in cases if case["id"] == selected_case_id), cases[0])
+        selected_case = next(
+            (
+                case for case in cases
+                if case["id"] == selected_case_id or case.get("public_case_id") == selected_case_id
+            ),
+            cases[0],
+        )
 
     total_pages = max(1, (total + limit - 1) // limit)
     return {
@@ -377,7 +387,7 @@ async def complaint_detail(request: Request, case_id: str):
         )
 
     with get_db() as db:
-        db_case = db.query(ComplaintCase).filter(ComplaintCase.id == case_id).first()
+        db_case = resolve_case_record(db, case_id)
         if db_case is None:
             return templates.TemplateResponse(request, "detail.html", context={
                 "case": None,
@@ -402,7 +412,7 @@ async def complaint_detail(request: Request, case_id: str):
         # Find associated workflow run for trace link
         run = (
             db.query(WorkflowRun)
-            .filter(WorkflowRun.case_id == case_id)
+            .filter(WorkflowRun.case_id == db_case.id)
             .order_by(WorkflowRun.started_at.desc())
             .first()
         )
@@ -434,7 +444,7 @@ async def update_complaint_status(
         return RedirectResponse(url=f"/complaints/{case_id}", status_code=302)
 
     with get_db() as db:
-        db_case = db.query(ComplaintCase).filter(ComplaintCase.id == case_id).first()
+        db_case = resolve_case_record(db, case_id)
         if db_case is None:
             return _redirect_to_dashboard()
 
@@ -444,7 +454,7 @@ async def update_complaint_status(
 
         db_case.status = new_status
 
-    return RedirectResponse(url=f"/complaints/{case_id}", status_code=302)
+    return RedirectResponse(url=f"/complaints/{db_case.public_case_id or db_case.id}", status_code=302)
 
 
 @router.get("/trace/latest", include_in_schema=False)
@@ -516,12 +526,7 @@ async def trace_search(request: Request, case_id: str = ""):
         # 3. Match via ComplaintCase.id
         if run is None:
             case_row = (
-                db.query(ComplaintCase)
-                .filter(
-                    (ComplaintCase.id == case_id) |
-                    ComplaintCase.id.ilike(f"{case_id}%")
-                )
-                .first()
+                resolve_case_record(db, case_id)
             )
             if case_row:
                 run = (
@@ -578,7 +583,8 @@ async def trace_suggestions(request: Request, q: str = ""):
             cases = (
                 db.query(ComplaintCase)
                 .filter(
-                    ComplaintCase.id.ilike(f"{q}%"),
+                    (ComplaintCase.id.ilike(f"{q}%")) |
+                    (ComplaintCase.public_case_id.ilike(f"{q.upper()}%")),
                     ~ComplaintCase.id.in_(matched_case_ids)
                 )
                 .limit(6 - len(runs))
@@ -596,7 +602,7 @@ async def trace_suggestions(request: Request, q: str = ""):
 
         results = [
             {
-                "case_id": r.case_id,
+                "case_id": (db.query(ComplaintCase.public_case_id).filter(ComplaintCase.id == r.case_id).scalar() or r.case_id),
                 "run_id": r.run_id,
                 "run_status": r.run_status,
                 "started_at": r.started_at.strftime("%Y-%m-%d %H:%M") if r.started_at else "",
@@ -624,7 +630,11 @@ async def trace_autocomplete(request: Request, q: str = ""):
     with get_db() as db:
         runs = (
             db.query(WorkflowRun)
-            .filter(WorkflowRun.case_id.startswith(q))
+            .join(ComplaintCase, ComplaintCase.id == WorkflowRun.case_id)
+            .filter(
+                WorkflowRun.case_id.startswith(q) |
+                ComplaintCase.public_case_id.ilike(f"{q.upper()}%")
+            )
             .order_by(WorkflowRun.started_at.desc())
             .limit(8)
             .all()
@@ -632,7 +642,7 @@ async def trace_autocomplete(request: Request, q: str = ""):
         results = [
             {
                 "run_id":     r.run_id,
-                "case_id":    r.case_id or "",
+                "case_id":    (db.query(ComplaintCase.public_case_id).filter(ComplaintCase.id == r.case_id).scalar() or r.case_id or ""),
                 "status":     r.run_status or "",
                 "severity":   r.final_severity or "",
                 "route":      r.final_route or "",
@@ -665,7 +675,8 @@ async def supervisor_trace(request: Request, run_id: str):
         run = None
         current_case_id = ""
         if run_row is not None:
-            current_case_id = run_row.case_id or ""
+            linked_case = resolve_case_record(db, run_row.case_id or "")
+            current_case_id = (linked_case.public_case_id if linked_case is not None else (run_row.case_id or ""))
             run = {
                 "run_id": run_row.run_id,
                 "run_status": run_row.run_status,
@@ -763,6 +774,58 @@ async def settings(request: Request):
         "active_nav": "settings",
         "user": user,
     })
+
+
+@router.get("/evaluation", include_in_schema=False)
+async def evaluation(request: Request):
+    """Admin benchmark dashboard — datasets, runs, and disagreement queue."""
+    user = _get_current_user(request)
+    if user is None:
+        return _redirect_to_login()
+    if user["role"] != "admin":
+        return _redirect_to_dashboard()
+
+    data = build_evaluation_data()
+
+    return templates.TemplateResponse(request, "evaluation.html", context={
+        "data": data,
+        "active_nav": "evaluation",
+        "user": user,
+    })
+
+
+@router.get("/evaluation/cases/{eval_case_id}", include_in_schema=False)
+async def evaluation_case_detail(request: Request, eval_case_id: str):
+    """Admin benchmark case detail — weak gold, system output, judge, and review state."""
+    user = _get_current_user(request)
+    if user is None:
+        return _redirect_to_login()
+    if user["role"] != "admin":
+        return _redirect_to_dashboard()
+
+    data = build_evaluation_case_data(eval_case_id)
+    return templates.TemplateResponse(request, "evaluation_case_detail.html", context={
+        "data": data,
+        "active_nav": "evaluation",
+        "user": user,
+    })
+
+
+@router.post("/evaluation/datasets/{dataset_id}/run", include_in_schema=False)
+async def evaluation_run_dataset(
+    request: Request,
+    dataset_id: str,
+    limit: int = Form(0),
+):
+    """Run one benchmark dataset through the production workflow."""
+    user = _get_current_user(request)
+    if user is None:
+        return _redirect_to_login()
+    if user["role"] != "admin":
+        return _redirect_to_dashboard()
+
+    run_dataset_benchmark(dataset_id, limit=limit or None)
+    return RedirectResponse(url="/evaluation", status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/chat-history", include_in_schema=False)

@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Base
+from app.utils.case_ids import ensure_case_public_id
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ def init_db() -> None:
     with engine.connect() as conn:
         complaint_case_columns: list[tuple[str, str]] = [
             ("external_schema_json", "TEXT"),
+            ("public_case_id", "VARCHAR(16)"),
             ("operational_mapping_json", "TEXT"),
             ("evidence_trace_json", "TEXT"),
             ("severity_class", "VARCHAR(40)"),
@@ -122,6 +124,59 @@ def init_db() -> None:
             ("source_page", "INTEGER"),
             ("created_at", "TIMESTAMP"),
         ]
+        source_dataset_columns: list[tuple[str, str]] = [
+            ("name", "VARCHAR(160)"),
+            ("company_id", "VARCHAR(64)"),
+            ("source_type", "VARCHAR(64)"),
+            ("description", "TEXT"),
+            ("version", "VARCHAR(32) DEFAULT 'v1'"),
+            ("status", "VARCHAR(32) DEFAULT 'active'"),
+            ("sampling_strategy_json", "TEXT"),
+            ("stats_json", "TEXT"),
+            ("created_at", "TIMESTAMP"),
+            ("updated_at", "TIMESTAMP"),
+        ]
+        source_dataset_item_columns: list[tuple[str, str]] = [
+            ("dataset_id", "VARCHAR(32)"),
+            ("external_id", "VARCHAR(64)"),
+            ("split", "VARCHAR(32) DEFAULT 'evaluation'"),
+            ("consumer_narrative", "TEXT"),
+            ("product", "VARCHAR(120)"),
+            ("sub_product", "VARCHAR(120)"),
+            ("issue", "VARCHAR(120)"),
+            ("sub_issue", "VARCHAR(120)"),
+            ("company", "VARCHAR(200)"),
+            ("state", "VARCHAR(2)"),
+            ("submitted_via", "VARCHAR(20)"),
+            ("date_received", "VARCHAR(16)"),
+            ("company_response", "TEXT"),
+            ("company_public_response", "TEXT"),
+            ("metadata_json", "TEXT"),
+            ("created_at", "TIMESTAMP"),
+        ]
+        knowledge_collection_columns: list[tuple[str, str]] = [
+            ("company_id", "VARCHAR(64)"),
+            ("source_dataset_id", "VARCHAR(32)"),
+            ("name", "VARCHAR(160)"),
+            ("knowledge_type", "VARCHAR(64)"),
+            ("description", "TEXT"),
+            ("version", "VARCHAR(32) DEFAULT 'v1'"),
+            ("status", "VARCHAR(32) DEFAULT 'active'"),
+            ("metadata_json", "TEXT"),
+            ("created_at", "TIMESTAMP"),
+            ("updated_at", "TIMESTAMP"),
+        ]
+        knowledge_entry_columns: list[tuple[str, str]] = [
+            ("collection_id", "VARCHAR(32)"),
+            ("title", "VARCHAR(200)"),
+            ("content", "TEXT"),
+            ("metadata_json", "TEXT"),
+            ("created_at", "TIMESTAMP"),
+            ("updated_at", "TIMESTAMP"),
+        ]
+        evaluation_dataset_columns: list[tuple[str, str]] = [
+            ("source_dataset_id", "VARCHAR(32)"),
+        ]
 
         for table_name, columns in (
             ("complaint_cases", complaint_case_columns),
@@ -129,6 +184,11 @@ def init_db() -> None:
             ("case_documents", case_document_columns),
             ("document_artifacts", document_artifact_columns),
             ("document_embeddings", document_embedding_columns),
+            ("source_datasets", source_dataset_columns),
+            ("source_dataset_items", source_dataset_item_columns),
+            ("knowledge_collections", knowledge_collection_columns),
+            ("knowledge_entries", knowledge_entry_columns),
+            ("evaluation_datasets", evaluation_dataset_columns),
         ):
             existing = conn.execute(
                 text(
@@ -156,6 +216,7 @@ def init_db() -> None:
 
     # Seed default user accounts (idempotent — skips if already present)
     _seed_default_users()
+    _backfill_public_case_ids()
 
 
 def _seed_default_users() -> None:
@@ -231,6 +292,32 @@ def _seed_default_users() -> None:
         raise
     finally:
         session.close()
+
+
+def _backfill_public_case_ids() -> None:
+    """Assign CASE00001-style public ids to complaint rows that predate the field."""
+    from app.db.models import ComplaintCase
+
+    session = SessionLocal()
+    try:
+        rows = (
+            session.query(ComplaintCase)
+            .filter(ComplaintCase.public_case_id.is_(None))
+            .order_by(ComplaintCase.created_at.asc(), ComplaintCase.id.asc())
+            .all()
+        )
+        changed = False
+        for row in rows:
+            ensure_case_public_id(session, row)
+            changed = True
+        if changed:
+            session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
 
 
 @contextmanager

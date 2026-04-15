@@ -198,7 +198,7 @@
         {% for case in data.recent_cases %}
         <tr class="hover:bg-surface-container-low transition-colors">
           <td class="px-6 py-4">
-            <div class="font-bold font-mono text-primary text-xs">#{{ case.id[:12] }}</div>
+            <div class="font-bold font-mono text-primary text-xs">#{{ case.public_case_id or case.id[:12] }}</div>
             <div class="text-[10px] text-on-surface-variant mt-0.5">{{ case.subject[:40] }}</div>
           </td>
           <td class="px-6 py-4">

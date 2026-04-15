@@ -84,7 +84,7 @@
      class="grid grid-cols-12 gap-4 px-6 py-4 items-center table-row-hover border-t border-outline-variant/10 block hover:no-underline">
     <!-- Case ID -->
     <div class="col-span-2">
-      <span class="font-mono text-xs text-primary font-bold">#{{ case.id[:12] }}</span>
+      <span class="font-mono text-xs text-primary font-bold">#{{ case.public_case_id or case.id[:12] }}</span>
     </div>
     <!-- Subject -->
     <div class="col-span-3">
@@ -159,7 +159,7 @@
   <!-- User view -->
   <div class="grid grid-cols-12 gap-4 px-6 py-4 items-center border-t border-outline-variant/10">
     <div class="col-span-2">
-      <span class="font-mono text-xs text-primary font-bold">#{{ case.id[:12] }}</span>
+      <span class="font-mono text-xs text-primary font-bold">#{{ case.public_case_id or case.id[:12] }}</span>
     </div>
     <div class="col-span-7">
       <div class="text-sm font-semibold text-on-surface">{{ case.subject }}</div>

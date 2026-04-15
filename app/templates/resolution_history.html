@@ -102,8 +102,8 @@
         </span>
       </div>
       <div>
-        <div class="text-xs text-on-surface-variant font-medium mb-1">#{{ case.id[:8] }} · {{ case.created_at.strftime('%b %d, %Y') if case.created_at else '—' }}</div>
-        <h4 class="text-lg font-bold text-on-surface font-headline">{{ case.product or ('Complaint ' ~ case.id[:8]) }}</h4>
+        <div class="text-xs text-on-surface-variant font-medium mb-1">#{{ case.public_case_id or case.id[:8] }} · {{ case.created_at.strftime('%b %d, %Y') if case.created_at else '—' }}</div>
+        <h4 class="text-lg font-bold text-on-surface font-headline">{{ case.product or ('Complaint ' ~ (case.public_case_id or case.id[:8])) }}</h4>
         <p class="text-sm text-on-surface-variant line-clamp-1">{{ case.subject or '' }}</p>
       </div>
     </div>

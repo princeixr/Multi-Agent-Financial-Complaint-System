@@ -86,7 +86,7 @@
           {% endif %}
           <tr class="hover:bg-surface-container/30 transition-colors">
             <td class="px-6 py-5">
-              <a href="/complaints/{{ case.id }}" class="font-mono text-sm font-bold text-primary hover:underline">#{{ case.id[:12] }}</a>
+              <a href="/complaints/{{ case.public_case_id or case.id }}" class="font-mono text-sm font-bold text-primary hover:underline">#{{ case.public_case_id or case.id[:12] }}</a>
             </td>
             <td class="px-6 py-5">
               <p class="text-sm font-semibold text-on-surface leading-snug">{{ case.subject }}</p>
@@ -167,7 +167,7 @@
           <tbody class="divide-y divide-surface-container">
             {% for case in resolved_history %}
             <tr class="hover:bg-surface-container-low/50">
-              <td class="px-6 py-4 text-sm font-mono text-on-surface-variant">#{{ case.id[:12] }}</td>
+              <td class="px-6 py-4 text-sm font-mono text-on-surface-variant">#{{ case.public_case_id or case.id[:12] }}</td>
               <td class="px-6 py-4">
                 {% if case.status == 'dismissed' %}
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-[11px] font-bold">

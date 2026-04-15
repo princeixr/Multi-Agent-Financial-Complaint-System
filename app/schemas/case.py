@@ -133,6 +133,7 @@ class CaseRead(BaseModel):
     """Full case representation returned by the API."""
 
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    public_case_id: Optional[str] = None
     status: CaseStatus = CaseStatus.RECEIVED
     consumer_narrative: str = ""
     product: Optional[str] = None

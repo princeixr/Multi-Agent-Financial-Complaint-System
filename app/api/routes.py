@@ -30,6 +30,7 @@ from app.documents.service import (
 )
 from app.orchestrator.workflow import process_complaint
 from app.schemas.case import CaseCreate, CaseRead
+from app.utils.case_ids import ensure_case_public_id, resolve_case_record
 from app.agents.intake_engine import (
     finalize_intake_session,
     get_intake_session,
@@ -185,6 +186,7 @@ def _case_read_from_db(db_case: ComplaintCase) -> CaseRead:
 
     return CaseRead(
         id=db_case.id,
+        public_case_id=getattr(db_case, "public_case_id", None),
         status=db_case.status,  # CaseStatus conversion happens via pydantic
         consumer_narrative=db_case.consumer_narrative,
         product=db_case.product,
@@ -227,6 +229,7 @@ def _persist_case_and_outputs(case: CaseRead) -> None:
     with get_db() as db:
         db_case = ComplaintCase(
             id=case.id,
+            public_case_id=case.public_case_id,
             status=case.status.value,
             consumer_narrative=case.consumer_narrative,
             product=case.product,
@@ -252,6 +255,10 @@ def _persist_case_and_outputs(case: CaseRead) -> None:
             document_consistency_json=_json_or_none(case.document_consistency),
         )
         db.add(db_case)
+        if not db_case.public_case_id:
+            case.public_case_id = ensure_case_public_id(db, db_case)
+        else:
+            case.public_case_id = db_case.public_case_id
 
         # Persist agent outputs into dedicated relational tables.
         if case.classification:
@@ -318,8 +325,13 @@ def _upsert_case_and_outputs(case: CaseRead) -> None:
         if db_case is None:
             db_case = ComplaintCase(id=case.id)
             db.add(db_case)
+        if not db_case.public_case_id:
+            case.public_case_id = ensure_case_public_id(db, db_case)
+        else:
+            case.public_case_id = db_case.public_case_id
 
         db_case.status = case.status.value if hasattr(case.status, "value") else str(case.status)
+        db_case.public_case_id = case.public_case_id
         db_case.consumer_narrative = case.consumer_narrative or ""
         db_case.product = case.product
         db_case.sub_product = case.sub_product
@@ -411,6 +423,7 @@ def _create_initial_case(case_id: str, payload: CaseCreate, user_id: str | None)
     now = datetime.utcnow()
     case = CaseRead(
         id=case_id,
+        public_case_id=None,
         status="intake_complete",
         consumer_narrative=payload.consumer_narrative or "",
         product=payload.product,
@@ -484,7 +497,7 @@ async def create_complaint(payload: CaseCreate) -> CaseRead:
 async def get_complaint(case_id: str) -> CaseRead:
     """Fetch a previously processed complaint case."""
     with get_db() as db:
-        db_case = db.query(ComplaintCase).filter(ComplaintCase.id == case_id).first()
+        db_case = resolve_case_record(db, case_id)
         if db_case is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -498,7 +511,11 @@ async def get_complaint(case_id: str) -> CaseRead:
     summary="List documents attached to a complaint case",
 )
 async def complaint_documents(case_id: str) -> list[dict]:
-    return [doc.model_dump() for doc in list_case_documents(case_id)]
+    with get_db() as db:
+        db_case = resolve_case_record(db, case_id)
+        if db_case is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case {case_id} not found")
+        return [doc.model_dump() for doc in list_case_documents(db_case.id)]
 
 
 @router.get(
@@ -656,6 +673,7 @@ async def finalize_intake(
         case_id = CaseRead().id
         user_id = request.cookies.get("user_id")
         case = _create_initial_case(case_id, case_create, user_id)
+        _upsert_case_and_outputs(case)
         linked_docs = link_session_documents_to_case(session_id=session_id, case_id=case.id, user_id=user_id)
         if linked_docs:
             case.review_notes = f"{len(linked_docs)} uploaded document(s) attached. Backend processing in progress."
