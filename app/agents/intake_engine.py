@@ -350,6 +350,8 @@ def _compute_sufficiency(packet: IntakePacket) -> IntakePacket:
         missing.append("complaint_description")
     if not has_product_or_issue:
         missing.append("product_or_issue")
+    if packet.prior_contact_attempted is None:
+        missing.append("reported_to_bank")
 
     if missing:
         packet.information_sufficiency = (
@@ -384,6 +386,7 @@ def _build_case_payload(packet: IntakePacket) -> dict:
         "external_product_category": packet.product_hint,
         "external_issue_type": _build_issue_label(packet),
         "requested_resolution": packet.desired_resolution,
+        "intake_prior_contact_attempted": packet.prior_contact_attempted,
         "intake_intent": packet.intent.value,
         "intake_urgency": packet.urgency,
         "intake_recommended_handoff": packet.recommended_handoff.value,
@@ -409,6 +412,29 @@ def _submission_offer_message(packet: IntakePacket) -> str:
     )
 
 
+def _needs_bank_registration_question(packet: IntakePacket) -> bool:
+    """Ask whether the issue has already been reported to the bank before completion."""
+    has_description = bool((packet.narrative_for_case or "").strip() or (packet.customer_summary or "").strip())
+    has_product_or_issue = bool(
+        (packet.product_hint and packet.product_hint.strip())
+        or (packet.issue_hint and packet.issue_hint.strip())
+        or (packet.sub_issue_hint and packet.sub_issue_hint.strip())
+    )
+    return packet.prior_contact_attempted is None and (has_description or has_product_or_issue)
+
+
+def _bank_registration_follow_up(packet: IntakePacket) -> str:
+    if packet.intent.value == "fraud_report":
+        return (
+            "Before I finalize this report, have you already reported this to Mock Bank "
+            "or spoken with a bank representative about the fraud?"
+        )
+    return (
+        "Before I finalize the complaint, have you already reported this issue to Mock Bank "
+        "or spoken with the bank about it?"
+    )
+
+
 def start_intake_session(channel: str = "web_chat") -> Tuple[str, IntakeSessionState]:
     """Create a new intake session with an initial greeting from the agent."""
     session_id = uuid4().hex
@@ -426,7 +452,8 @@ def start_intake_session(channel: str = "web_chat") -> Tuple[str, IntakeSessionS
     )
     greeting = (
         "Thanks for reaching out. I'm here to help document your complaint. "
-        "Please briefly describe what happened and which financial product or service it relates to. "
+        "Please briefly describe what happened, which financial product or service it relates to, "
+        "and whether you've already reported it to Mock Bank. "
         "Do not include full card numbers, bank account numbers, or your Social Security number."
     )
     state.last_agent_message = greeting
@@ -495,6 +522,9 @@ def process_intake_message(session_id: str, user_message: str, model_name: str |
             "Please tell me what happened, which product or service it relates to, "
             "and any date or amount involved if you know it."
         )
+
+        if _needs_bank_registration_question(merged):
+            assistant_message = _bank_registration_follow_up(merged)
 
         state.packet = merged
         state.completed = merged.information_sufficiency is InformationSufficiency.SUFFICIENT

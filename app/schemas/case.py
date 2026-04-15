@@ -92,6 +92,9 @@ class CaseCreate(BaseModel):
     requested_resolution: Optional[str] = Field(
         None, description="Optional externally requested resolution"
     )
+    intake_prior_contact_attempted: Optional[bool] = Field(
+        None, description="Whether the customer says they already reported this issue to the bank."
+    )
     intake_intent: Optional[str] = Field(
         None, description="Optional intake-stage intent label from the interactive intake agent"
     )

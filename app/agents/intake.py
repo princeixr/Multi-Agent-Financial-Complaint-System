@@ -58,6 +58,7 @@ def run_intake(payload: CaseCreate) -> CaseRead:
         "external_product_category": payload.external_product_category,
         "external_issue_type": payload.external_issue_type,
         "requested_resolution": payload.requested_resolution,
+        "intake_prior_contact_attempted": payload.intake_prior_contact_attempted,
         "intake_intent": payload.intake_intent,
         "intake_urgency": payload.intake_urgency,
         "intake_recommended_handoff": payload.intake_recommended_handoff,
