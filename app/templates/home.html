@@ -1,8 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Triage Aurora | Multi-Agent Complaint System{% endblock %}
+{% block title %}TriageAI | Multi-Agent Complaint System{% endblock %}
 
 {% block head %}
 <style>
+  .marketing-page {
+    background: #fbf9f5;
+    color: #10111a;
+  }
   .brand-topnav {
     position: sticky;
     top: 0;
@@ -15,57 +19,70 @@
 <script>
   /* Force light mode on the landing page regardless of saved preference */
   document.documentElement.classList.remove('dark');
+  localStorage.setItem('theme', 'light');
 </script>
 {% endblock %}
 
 {% block content %}
 {% if not user %}
 <style>
+  body { background: #fbf9f5 !important; color: #10111a !important; }
   main { margin-left: 0 !important; padding-top: 0 !important; }
   main > div { padding: 0 !important; }
+  .marketing-hero {
+    background:
+      radial-gradient(circle at 20% 24%, rgba(129, 243, 229, 0.12), transparent 18%),
+      radial-gradient(circle at 72% 40%, rgba(0, 106, 98, 0.10), transparent 20%),
+      linear-gradient(180deg, #fdfbf8 0%, #f6f3ee 100%);
+  }
 </style>
 
 <!-- ════════════ STICKY TOPNAV ════════════ -->
+<div class="marketing-page">
 <nav class="brand-topnav">
   <div class="flex justify-between items-center px-12 py-4 max-w-full mx-auto">
-    <div class="text-2xl font-bold tracking-tighter font-headline" style="color:#000666;">Triage Aurora</div>
+    <a href="/" class="text-2xl font-bold tracking-tighter font-headline" style="color:#000666;">TriageAI</a>
     <div class="hidden md:flex items-center gap-8 font-headline font-semibold tracking-tight">
-      <a href="#" style="color:#000666; border-bottom:2px solid #000666; padding-bottom:4px;">Platform</a>
-      <a href="#" class="transition-all duration-300" style="color:#636573;" onmouseover="this.style.color='#000666'" onmouseout="this.style.color='#636573'">Solutions</a>
-      <a href="#" class="transition-all duration-300" style="color:#636573;" onmouseover="this.style.color='#000666'" onmouseout="this.style.color='#636573'">AI Agents</a>
-      <a href="#" class="transition-all duration-300" style="color:#636573;" onmouseover="this.style.color='#000666'" onmouseout="this.style.color='#636573'">Audit Hub</a>
-      <a href="#" class="transition-all duration-300" style="color:#636573;" onmouseover="this.style.color='#000666'" onmouseout="this.style.color='#636573'">Security</a>
+      <a href="/"
+         class="transition-all duration-300"
+         style="color:{% if active_nav == 'platform' %}#000666{% else %}#636573{% endif %};{% if active_nav == 'platform' %} border-bottom:2px solid #000666; padding-bottom:4px;{% endif %}">Platform</a>
+      <a href="/pain-points"
+         class="transition-all duration-300"
+         style="color:{% if active_nav == 'pain_points' %}#000666{% else %}#636573{% endif %};{% if active_nav == 'pain_points' %} border-bottom:2px solid #000666; padding-bottom:4px;{% endif %}">Pain Points</a>
+      <a href="/agentic-solution"
+         class="transition-all duration-300"
+         style="color:{% if active_nav == 'agentic_solution' %}#000666{% else %}#636573{% endif %};{% if active_nav == 'agentic_solution' %} border-bottom:2px solid #000666; padding-bottom:4px;{% endif %}">Agentic Solution</a>
     </div>
     <div class="flex items-center gap-4">
       <a href="/login" class="font-headline font-semibold px-6 py-2 rounded-full transition-all" style="color:#000666;">Login</a>
-      <button type="button" class="px-8 py-3 rounded-full font-headline font-bold transition-transform cursor-default" style="background:linear-gradient(135deg,#000666,#1a237e);color:#ffffff;">Get Started</button>
+      <a href="/login" class="px-8 py-3 rounded-full font-headline font-bold transition-transform" style="background:linear-gradient(135deg,#000666,#1a237e);color:#ffffff;">Get Started</a>
     </div>
   </div>
 </nav>
 
 <!-- ════════════ HERO SECTION ════════════ -->
-<section class="relative min-h-[870px] flex items-center overflow-hidden hero-gradient text-white px-12">
+<section class="marketing-hero relative min-h-[870px] flex items-center overflow-hidden px-12">
   <div class="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
     <!-- Left: Copy -->
     <div class="lg:col-span-7 z-10">
       <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/20 border border-secondary/30 mb-8">
         <span class="material-symbols-outlined text-secondary-fixed-dim" style="font-variation-settings:'FILL' 1;">auto_awesome</span>
-        <span class="text-sm font-label font-bold tracking-widest uppercase text-secondary-fixed-dim">The Ethereal Vault Precision</span>
+        <span class="text-sm font-label font-bold tracking-widest uppercase" style="color:#3bcfc6;">The Ethereal Vault Precision</span>
       </div>
-      <h1 class="font-headline text-6xl md:text-7xl font-extrabold tracking-tighter leading-[1.1] mb-6">
-        The Future of <span class="text-secondary-fixed-dim">Complaint</span> Orchestration
+      <h1 class="font-headline text-6xl md:text-7xl font-extrabold tracking-tighter leading-[1.1] mb-6" style="color:#000666;">
+        The Future of <span style="color:#42d7cf;">Complaint</span> <span style="color:#0f1424;">Orchestration</span>
       </h1>
-      <p class="text-xl text-on-primary-container max-w-2xl leading-relaxed mb-10 font-body">
-        Transform manual friction into autonomous clarity. Triage Aurora leverages a Multi-Agent architecture to orchestrate complex regulatory resolutions with cryptographic precision.
+      <p class="text-xl max-w-2xl leading-relaxed mb-10 font-body" style="color:#5c66f3;">
+        Transform manual friction into autonomous clarity. TriageAI leverages a Multi-Agent architecture to orchestrate complex regulatory resolutions with cryptographic precision.
       </p>
       <div class="flex flex-wrap gap-4">
-        <button type="button" class="bg-white text-primary px-10 py-5 rounded-full font-headline font-bold text-lg hover:shadow-xl transition-all cursor-default">
+        <a href="/agentic-solution" class="bg-white text-primary px-10 py-5 rounded-full font-headline font-bold text-lg hover:shadow-xl transition-all">
           Explore the Architecture
-        </button>
-        <button type="button" class="border-2 border-white/20 hover:bg-white/10 px-10 py-5 rounded-full font-headline font-bold text-lg transition-all cursor-default">
-          Watch the Trace
-        </button>
+        </a>
+        <a href="/pain-points" class="px-10 py-5 rounded-full font-headline font-bold text-lg transition-all border-2 hover:bg-[#eef6f4]" style="border-color:#c5d9d3;color:#006a62;background:rgba(255,255,255,0.68);">
+          See the Pain Points
+        </a>
       </div>
     </div>
 
@@ -225,7 +242,7 @@
       <div class="order-1 lg:order-2">
         <h2 class="font-headline text-5xl font-extrabold tracking-tight mb-6" style="color:#000666;">Unrivaled <br/>Audit Visibility</h2>
         <p class="text-xl leading-relaxed mb-8" style="color:#434653;">
-          Traditional systems are black boxes. Triage Aurora provides a high-fidelity execution trace that documents every micro-decision made by our AI agents.
+          Traditional systems are black boxes. TriageAI provides a high-fidelity execution trace that documents every micro-decision made by our AI agents.
         </p>
         <div class="space-y-6">
           <div class="flex items-start gap-4">
@@ -281,11 +298,11 @@
 <footer class="w-full border-t border-outline-variant/15" style="background:#f5f3ef;">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8 px-12 py-16 max-w-7xl mx-auto">
     <div class="space-y-6">
-      <div class="font-headline font-bold text-2xl" style="color:#000666;">Triage Aurora</div>
+      <div class="font-headline font-bold text-2xl" style="color:#000666;">TriageAI</div>
       <p class="text-sm max-w-xs leading-relaxed" style="color:#636573;">
         Automating the resolution process with multi-agent intelligence and cryptographic certainty.
       </p>
-      <div class="text-sm" style="color:#636573;">© 2024 Triage Aurora. Multi-Agent Intelligence Platform.</div>
+      <div class="text-sm" style="color:#636573;">© 2024 TriageAI. Multi-Agent Intelligence Platform.</div>
     </div>
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-8">
       <div class="flex flex-col gap-4">
@@ -307,6 +324,7 @@
     </div>
   </div>
 </footer>
+</div>
 
 {% else %}
 <!-- ════════════ AUTHENTICATED: Quick-access home ════════════ -->

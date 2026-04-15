@@ -262,7 +262,7 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
     user = _get_current_user(request)
     if user is None:
         return templates.TemplateResponse(request, "home.html", context={
-            "active_nav": None,
+            "active_nav": "platform",
             "user": None,
         })
 
@@ -398,7 +398,23 @@ async def user_profile_page(request: Request):
 @router.get("/brand", include_in_schema=False)
 async def brand_page(request: Request):
     return templates.TemplateResponse(request, "brand.html", context={
-        "active_nav": None,
+        "active_nav": "platform",
+        "user": _get_current_user(request),
+    })
+
+
+@router.get("/pain-points", include_in_schema=False)
+async def pain_points_page(request: Request):
+    return templates.TemplateResponse(request, "pain_points.html", context={
+        "active_nav": "pain_points",
+        "user": _get_current_user(request),
+    })
+
+
+@router.get("/agentic-solution", include_in_schema=False)
+async def agentic_solution_page(request: Request):
+    return templates.TemplateResponse(request, "agentic_solution.html", context={
+        "active_nav": "agentic_solution",
         "user": _get_current_user(request),
     })
 

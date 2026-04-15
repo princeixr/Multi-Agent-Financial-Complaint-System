@@ -1,8 +1,20 @@
 {% extends "base.html" %}
-{% block title %}About Triage Aurora — Brand{% endblock %}
+{% block title %}About TriageAI — Brand{% endblock %}
 
 {% block head %}
 <style>
+  .marketing-page {
+    background: #fbf9f5;
+    color: #10111a;
+  }
+  .brand-topnav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    width: 100%;
+    background: #ffffff;
+    box-shadow: 0px 1px 0px rgba(0, 6, 102, 0.08), 0px 4px 24px rgba(0, 6, 102, 0.06);
+  }
 @keyframes floatBrand {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-14px); }
@@ -22,21 +34,51 @@
               radial-gradient(circle at bottom right, rgba(26, 35, 126, 0.08), transparent 28%);
 }
 </style>
+<script>
+  document.documentElement.classList.remove('dark');
+  localStorage.setItem('theme', 'light');
+</script>
 {% endblock %}
 
 {% block content %}
+<style>
+  body { background: #fbf9f5 !important; color: #10111a !important; }
+  main { margin-left: 0 !important; padding-top: 0 !important; }
+  main > div { padding: 0 !important; }
+</style>
+<div class="marketing-page">
+<nav class="brand-topnav">
+  <div class="flex justify-between items-center px-12 py-4 max-w-full mx-auto">
+    <a href="/" class="text-2xl font-bold tracking-tighter font-headline" style="color:#000666;">TriageAI</a>
+    <div class="hidden md:flex items-center gap-8 font-headline font-semibold tracking-tight">
+      <a href="/"
+         class="transition-all duration-300"
+         style="color:{% if active_nav == 'platform' %}#000666{% else %}#636573{% endif %};{% if active_nav == 'platform' %} border-bottom:2px solid #000666; padding-bottom:4px;{% endif %}">Platform</a>
+      <a href="/pain-points"
+         class="transition-all duration-300"
+         style="color:{% if active_nav == 'pain_points' %}#000666{% else %}#636573{% endif %};{% if active_nav == 'pain_points' %} border-bottom:2px solid #000666; padding-bottom:4px;{% endif %}">Pain Points</a>
+      <a href="/agentic-solution"
+         class="transition-all duration-300"
+         style="color:{% if active_nav == 'agentic_solution' %}#000666{% else %}#636573{% endif %};{% if active_nav == 'agentic_solution' %} border-bottom:2px solid #000666; padding-bottom:4px;{% endif %}">Agentic Solution</a>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="/login" class="font-headline font-semibold px-6 py-2 rounded-full transition-all" style="color:#000666;">Login</a>
+      <a href="/login" class="px-8 py-3 rounded-full font-headline font-bold transition-transform" style="background:linear-gradient(135deg,#000666,#1a237e);color:#ffffff;">Get Started</a>
+    </div>
+  </div>
+</nav>
 <section class="relative overflow-hidden bg-brand-hero">
   <div class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 bg-gradient-to-b from-primary/10 via-transparent to-transparent"></div>
   <div class="relative mx-auto max-w-7xl px-6 py-24 lg:flex lg:items-center lg:justify-between">
     <div class="max-w-2xl">
       <span class="inline-flex items-center rounded-full bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary shadow-sm shadow-primary/10">
-        Triage Aurora Brand Story
+        TriageAI Brand Story
       </span>
       <h1 class="mt-8 text-5xl font-headline font-extrabold tracking-tight text-on-surface sm:text-6xl">
         We help organisations convert complaints into clear, compliant action.
       </h1>
       <p class="mt-6 max-w-xl text-lg leading-8 text-on-surface-variant">
-        Triage Aurora is a complaint management platform designed for teams that need fast routing, accountable follow-up, and AI-backed insights—without losing sight of customer trust and regulatory readiness.
+        TriageAI is a complaint management platform designed for teams that need fast routing, accountable follow-up, and AI-backed insights—without losing sight of customer trust and regulatory readiness.
       </p>
 
       <div class="mt-12 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -108,4 +150,5 @@
     </div>
   </div>
 </section>
+</div>
 {% endblock %}

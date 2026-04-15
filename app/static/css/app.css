@@ -1,4 +1,4 @@
-/* Triage Aurora — Custom styles */
+/* TriageAI — Custom styles */
 
 /* ── Animations ── */
 @keyframes float {
@@ -24,7 +24,7 @@
 .spin-slow           { animation: spinSlow 20s linear infinite; }
 .spin-slow-reverse   { animation: spinSlowReverse 15s linear infinite; }
 
-/* ── Aurora gradient (primary CTA / brand element) ── */
+/* ── TriageAI gradient (primary CTA / brand element) ── */
 .aurora-gradient {
   background: linear-gradient(135deg, #000666 0%, #1a237e 100%);
 }
@@ -47,7 +47,7 @@ main {
 }
 
 /* ═══════════════════════════════════════════════════════
-   CSS VARIABLES — Triage Aurora Palette (Light + Dark)
+   CSS VARIABLES — TriageAI Palette (Light + Dark)
 ═══════════════════════════════════════════════════════ */
 :root {
   /* Primary — Deep Indigo */
