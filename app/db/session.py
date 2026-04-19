@@ -179,6 +179,16 @@ def init_db() -> None:
         evaluation_dataset_columns: list[tuple[str, str]] = [
             ("source_dataset_id", "VARCHAR(32)"),
         ]
+        workflow_run_columns: list[tuple[str, str]] = [
+            ("llm_call_count", "INTEGER"),
+        ]
+        workflow_step_columns: list[tuple[str, str]] = [
+            ("llm_call_count", "INTEGER"),
+            ("prompt_tokens", "INTEGER"),
+            ("completion_tokens", "INTEGER"),
+            ("token_total", "INTEGER"),
+            ("cost_estimate_usd", "DOUBLE PRECISION"),
+        ]
 
         for table_name, columns in (
             ("complaint_cases", complaint_case_columns),
@@ -191,6 +201,8 @@ def init_db() -> None:
             ("knowledge_collections", knowledge_collection_columns),
             ("knowledge_entries", knowledge_entry_columns),
             ("evaluation_datasets", evaluation_dataset_columns),
+            ("workflow_runs", workflow_run_columns),
+            ("workflow_steps", workflow_step_columns),
         ):
             existing = conn.execute(
                 text(
@@ -215,6 +227,15 @@ def init_db() -> None:
                     )
                 )
         conn.commit()
+
+    try:
+        from app.observability.backfill import backfill_cost_ledger_from_workflow_runs
+
+        inserted = backfill_cost_ledger_from_workflow_runs()
+        if inserted:
+            logger.info("Historical cost ledger backfill inserted %d rows", inserted)
+    except Exception as exc:
+        logger.warning("Historical cost ledger backfill skipped: %s", exc)
 
     # Seed default user accounts (idempotent — skips if already present)
     _seed_default_users()

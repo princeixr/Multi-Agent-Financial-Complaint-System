@@ -1,4 +1,4 @@
-"""Per-request context for tracing (run_id, case_id, sequence, trace_id)."""
+"""Per-request context for tracing and cost attribution."""
 
 from __future__ import annotations
 
@@ -19,7 +19,15 @@ class ActiveRun:
         return self.sequence
 
 
+@dataclass
+class ActiveStep:
+    node_name: str
+    sequence_number: int
+    retry_number: int = 0
+
+
 _active: ContextVar[ActiveRun | None] = ContextVar("workflow_active_run", default=None)
+_active_step: ContextVar[ActiveStep | None] = ContextVar("workflow_active_step", default=None)
 
 
 def get_active_run() -> ActiveRun | None:
@@ -32,6 +40,18 @@ def set_active_run(active: ActiveRun) -> Token:
 
 def reset_active_run(token: Token) -> None:
     _active.reset(token)
+
+
+def get_active_step() -> ActiveStep | None:
+    return _active_step.get()
+
+
+def set_active_step(active_step: ActiveStep) -> Token:
+    return _active_step.set(active_step)
+
+
+def reset_active_step(token: Token) -> None:
+    _active_step.reset(token)
 
 
 def set_case_id(case_id: str) -> None:

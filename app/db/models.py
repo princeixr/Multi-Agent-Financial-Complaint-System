@@ -594,6 +594,7 @@ class WorkflowRun(Base):
     manual_review_required = Column(Boolean, default=False)
     retry_count_total = Column(Integer, default=0)
 
+    llm_call_count = Column(Integer, nullable=True)
     token_total = Column(Integer, nullable=True)
     cost_estimate_total = Column(Float, nullable=True)
 
@@ -623,6 +624,12 @@ class WorkflowStep(Base):
     retry_number = Column(Integer, default=0)
     model_name = Column(String(80), nullable=True)
 
+    llm_call_count = Column(Integer, nullable=True)
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    token_total = Column(Integer, nullable=True)
+    cost_estimate_usd = Column(Float, nullable=True)
+
     input_snapshot_json = Column(Text, nullable=True)
     output_snapshot_json = Column(Text, nullable=True)
     state_diff_json = Column(Text, nullable=True)
@@ -632,6 +639,38 @@ class WorkflowStep(Base):
     error_message = Column(Text, nullable=True)
 
     run = relationship("WorkflowRun", back_populates="steps")
+
+
+class LLMCallCost(Base):
+    """Atomic ledger entry for one LLM call."""
+
+    __tablename__ = "llm_call_costs"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    run_id = Column(String(64), ForeignKey("workflow_runs.run_id"), nullable=False, index=True)
+    case_id = Column(String(32), ForeignKey("complaint_cases.id"), nullable=True, index=True)
+
+    sequence_number = Column(Integer, nullable=True, index=True)
+    agent_name = Column(String(64), nullable=True, index=True)
+    langsmith_run_id = Column(String(64), nullable=True, index=True)
+    provider = Column(String(40), nullable=True)
+    model_name = Column(String(120), nullable=True)
+
+    prompt_tokens = Column(Integer, nullable=False, default=0)
+    completion_tokens = Column(Integer, nullable=False, default=0)
+    total_tokens = Column(Integer, nullable=False, default=0)
+
+    input_cost_usd = Column(Float, nullable=False, default=0.0)
+    output_cost_usd = Column(Float, nullable=False, default=0.0)
+    total_cost_usd = Column(Float, nullable=False, default=0.0)
+    latency_ms = Column(Float, nullable=True)
+
+    status = Column(String(32), nullable=False, default="success")
+    retry_number = Column(Integer, nullable=False, default=0)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+
+    metadata_json = Column(Text, nullable=True)
 
 
 class ResolutionEmbedding(Base):

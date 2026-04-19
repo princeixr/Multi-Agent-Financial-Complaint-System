@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db.models import ComplaintCase, WorkflowRun, WorkflowStep
+from app.db.models import ComplaintCase, LLMCallCost, WorkflowRun, WorkflowStep
 from app.db.session import SessionLocal
-from app.observability.context import get_active_run
 from app.knowledge.mock_company_pack import deployment_label
 from app.observability.versions import (
     default_chat_model,
@@ -20,6 +21,88 @@ from app.observability.versions import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _rollup_costs_for_run(
+    session,
+    run_id: str,
+    *,
+    sequence_number: int | None = None,
+) -> dict[str, float | int]:
+    query = session.query(
+        func.count(LLMCallCost.id),
+        func.coalesce(func.sum(LLMCallCost.prompt_tokens), 0),
+        func.coalesce(func.sum(LLMCallCost.completion_tokens), 0),
+        func.coalesce(func.sum(LLMCallCost.total_tokens), 0),
+        func.coalesce(func.sum(LLMCallCost.total_cost_usd), 0.0),
+    ).filter(LLMCallCost.run_id == run_id)
+    if sequence_number is not None:
+        query = query.filter(LLMCallCost.sequence_number == sequence_number)
+    row = query.one()
+    return {
+        "llm_call_count": int(row[0] or 0),
+        "prompt_tokens": int(row[1] or 0),
+        "completion_tokens": int(row[2] or 0),
+        "token_total": int(row[3] or 0),
+        "cost_estimate_usd": float(row[4] or 0.0),
+    }
+
+
+def insert_llm_call_cost(
+    *,
+    run_id: str,
+    case_id: str | None,
+    sequence_number: int | None,
+    agent_name: str | None,
+    langsmith_run_id: str | None,
+    provider: str | None,
+    model_name: str | None,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: int,
+    input_cost_usd: float,
+    output_cost_usd: float,
+    total_cost_usd: float,
+    latency_ms: float | None,
+    status: str,
+    retry_number: int,
+    started_at: datetime | None,
+    ended_at: datetime | None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        session = SessionLocal()
+        try:
+            row = LLMCallCost(
+                run_id=run_id,
+                case_id=case_id,
+                sequence_number=sequence_number,
+                agent_name=agent_name,
+                langsmith_run_id=langsmith_run_id,
+                provider=provider,
+                model_name=model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                input_cost_usd=input_cost_usd,
+                output_cost_usd=output_cost_usd,
+                total_cost_usd=total_cost_usd,
+                latency_ms=latency_ms,
+                status=status,
+                retry_number=retry_number,
+                started_at=started_at or datetime.utcnow(),
+                ended_at=ended_at,
+                metadata_json=json.dumps(metadata, separators=(",", ":")) if metadata else None,
+            )
+            session.add(row)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+    except SQLAlchemyError as e:
+        logger.warning("llm_call_costs insert skipped: %s", e)
 
 
 def insert_workflow_run(
@@ -36,6 +119,7 @@ def insert_workflow_run(
                 trace_id=trace_id,
                 started_at=datetime.utcnow(),
                 run_status="running",
+                llm_call_count=0,
                 workflow_version=workflow_version(),
                 prompt_version=prompt_bundle_version(),
                 knowledge_pack_version=knowledge_pack_version(),
@@ -61,6 +145,10 @@ def update_workflow_run_case_id(run_id: str, case_id: str) -> None:
             row = session.get(WorkflowRun, run_id)
             if row:
                 row.case_id = case_id
+                session.query(LLMCallCost).filter(
+                    LLMCallCost.run_id == run_id,
+                    LLMCallCost.case_id.is_(None),
+                ).update({"case_id": case_id}, synchronize_session=False)
                 session.commit()
         finally:
             session.close()
@@ -106,6 +194,12 @@ def insert_workflow_step(
                 error_type=error_type,
                 error_message=error_message,
             )
+            rollup = _rollup_costs_for_run(session, run_id, sequence_number=sequence_number)
+            step.llm_call_count = int(rollup["llm_call_count"])
+            step.prompt_tokens = int(rollup["prompt_tokens"])
+            step.completion_tokens = int(rollup["completion_tokens"])
+            step.token_total = int(rollup["token_total"])
+            step.cost_estimate_usd = float(rollup["cost_estimate_usd"])
             session.add(step)
             session.commit()
         except Exception:
@@ -134,23 +228,25 @@ def finalize_workflow_run(
             row = session.get(WorkflowRun, run_id)
             if not row:
                 return
+            rollup = _rollup_costs_for_run(session, run_id)
             row.ended_at = datetime.utcnow()
             row.run_status = run_status
             row.final_route = final_route
             row.final_severity = final_severity
             row.manual_review_required = manual_review_required
             row.retry_count_total = retry_count_total
-            if token_total is not None:
-                row.token_total = token_total
-            if cost_estimate_usd is not None:
-                row.cost_estimate_total = cost_estimate_usd
+            row.llm_call_count = int(rollup["llm_call_count"])
+            row.token_total = token_total if token_total is not None else int(rollup["token_total"])
+            row.cost_estimate_total = (
+                cost_estimate_usd if cost_estimate_usd is not None else float(rollup["cost_estimate_usd"])
+            )
             # Read case_id before commit so it's available after session state changes
             linked_case_id = row.case_id
             session.commit()
 
             # Propagate cost to the linked complaint case
-            if linked_case_id and (token_total is not None or cost_estimate_usd is not None):
-                _update_case_cost(session, linked_case_id, token_total, cost_estimate_usd)
+            if linked_case_id:
+                _update_case_cost(session, linked_case_id, row.token_total, row.cost_estimate_total)
         finally:
             session.close()
     except SQLAlchemyError as e:

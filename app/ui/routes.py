@@ -849,7 +849,7 @@ async def trace_stream(request: Request, run_id: str):
 
 
 @router.get("/analytics", include_in_schema=False)
-async def analytics(request: Request):
+async def analytics(request: Request, range: str = "all"):
     """Analytics overview — charts and KPIs."""
     user = _get_current_user(request)
     if user is None:
@@ -858,7 +858,7 @@ async def analytics(request: Request):
         return _redirect_to_dashboard()
 
     with get_db() as db:
-        data = build_analytics_data(db)
+        data = build_analytics_data(db, range_key=range)
 
     return templates.TemplateResponse(request, "analytics.html", context={
         "data": data,

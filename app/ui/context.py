@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
+from datetime import datetime, timedelta
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.documents.service import build_case_document_summary
@@ -19,11 +21,19 @@ from app.knowledge.mock_company_pack import format_root_cause_category
 from app.db.models import (
     ComplaintCase,
     ClassificationRecord,
+    LLMCallCost,
     RiskRecord,
     WorkflowRun,
 )
 
 logger = logging.getLogger(__name__)
+
+_ANALYTICS_RANGES: dict[str, tuple[str, timedelta | None]] = {
+    "24h": ("24 Hours", timedelta(hours=24)),
+    "7d": ("7 Days", timedelta(days=7)),
+    "30d": ("Monthly", timedelta(days=30)),
+    "all": ("All Time", None),
+}
 
 
 def _safe_json_load(value: str | None) -> dict | list | None:
@@ -270,24 +280,47 @@ def build_case_detail(db_case: ComplaintCase) -> dict:
     }
 
 
-def build_analytics_data(db: Session) -> dict:
+def build_analytics_data(db: Session, range_key: str = "all") -> dict:
     """Build aggregate analytics data for the analytics dashboard."""
-    total_complaints = db.query(ComplaintCase).count()
+    selected_range_key = range_key if range_key in _ANALYTICS_RANGES else "all"
+    selected_range_label, delta = _ANALYTICS_RANGES[selected_range_key]
+    cutoff = datetime.utcnow() - delta if delta is not None else None
+
+    complaint_query = db.query(ComplaintCase)
+    run_query = db.query(WorkflowRun)
+    llm_cost_query = db.query(LLMCallCost)
+
+    if cutoff is not None:
+        complaint_query = complaint_query.filter(ComplaintCase.created_at >= cutoff)
+        run_query = run_query.filter(WorkflowRun.started_at >= cutoff)
+        llm_cost_query = llm_cost_query.filter(LLMCallCost.started_at >= cutoff)
+
+    total_complaints = complaint_query.count()
 
     # Complaints by product category
     category_rows = (
         db.query(ClassificationRecord.product_category)
-        .all()
-    )
+        .join(ComplaintCase, ComplaintCase.id == ClassificationRecord.case_id)
+        .filter(ComplaintCase.created_at >= cutoff) if cutoff is not None else
+        db.query(ClassificationRecord.product_category)
+        .join(ComplaintCase, ComplaintCase.id == ClassificationRecord.case_id)
+    ).all()
     category_counts = Counter(r[0] for r in category_rows if r[0])
 
     # Risk distribution
-    risk_rows = db.query(RiskRecord.risk_level).all()
+    risk_rows = (
+        db.query(RiskRecord.risk_level)
+        .join(ComplaintCase, ComplaintCase.id == RiskRecord.case_id)
+        .filter(ComplaintCase.created_at >= cutoff) if cutoff is not None else
+        db.query(RiskRecord.risk_level)
+        .join(ComplaintCase, ComplaintCase.id == RiskRecord.case_id)
+    ).all()
     risk_counts = Counter(r[0] for r in risk_rows if r[0])
 
     # Team workload
     team_rows = (
-        db.query(ComplaintCase.routed_to)
+        complaint_query
+        .with_entities(ComplaintCase.routed_to)
         .filter(ComplaintCase.routed_to.isnot(None))
         .all()
     )
@@ -295,10 +328,10 @@ def build_analytics_data(db: Session) -> dict:
 
     # Recent runs for resolution time
     runs = (
-        db.query(WorkflowRun)
+        run_query
         .filter(WorkflowRun.ended_at.isnot(None))
         .order_by(WorkflowRun.started_at.desc())
-        .limit(50)
+        .limit(100)
         .all()
     )
     resolution_times = []
@@ -315,8 +348,77 @@ def build_analytics_data(db: Session) -> dict:
         if resolution_times else 0
     )
 
+    llm_spend_total = (
+        llm_cost_query.with_entities(func.coalesce(func.sum(LLMCallCost.total_cost_usd), 0.0)).scalar()
+        or 0.0
+    )
+    llm_call_count = (
+        llm_cost_query.with_entities(func.count(LLMCallCost.id)).scalar()
+        or 0
+    )
+    tracked_case_count = (
+        run_query.with_entities(func.count(func.distinct(WorkflowRun.case_id)))
+        .filter(WorkflowRun.case_id.isnot(None), WorkflowRun.cost_estimate_total.isnot(None))
+        .scalar()
+        or 0
+    )
+    completed_run_count = (
+        run_query.filter(WorkflowRun.run_status == "completed").count()
+    )
+    avg_cost_per_complaint = (llm_spend_total / tracked_case_count) if tracked_case_count else 0.0
+    avg_cost_per_resolution = (llm_spend_total / completed_run_count) if completed_run_count else 0.0
+    avg_cost_per_call = (llm_spend_total / llm_call_count) if llm_call_count else 0.0
+    tracking_coverage_pct = (
+        round((tracked_case_count / total_complaints) * 100.0, 1)
+        if total_complaints else 0.0
+    )
+
+    agent_rows = (
+        llm_cost_query.with_entities(
+            LLMCallCost.agent_name,
+            func.count(LLMCallCost.id),
+            func.coalesce(func.sum(LLMCallCost.total_cost_usd), 0.0),
+            func.coalesce(func.sum(LLMCallCost.total_tokens), 0),
+            func.coalesce(func.avg(LLMCallCost.total_cost_usd), 0.0),
+        )
+        .filter(LLMCallCost.agent_name.isnot(None))
+        .group_by(LLMCallCost.agent_name)
+        .order_by(func.sum(LLMCallCost.total_cost_usd).desc())
+        .all()
+    )
+    agent_costs = []
+    for agent_name, call_count, total_cost, total_tokens, avg_call_cost in agent_rows:
+        share_pct = ((float(total_cost) / llm_spend_total) * 100.0) if llm_spend_total else 0.0
+        avg_tokens_per_call = (int(total_tokens) / int(call_count)) if call_count else 0
+        agent_costs.append({
+            "agent_name": agent_name,
+            "call_count": int(call_count or 0),
+            "total_cost_usd": round(float(total_cost or 0.0), 4),
+            "total_tokens": int(total_tokens or 0),
+            "avg_cost_per_call_usd": round(float(avg_call_cost or 0.0), 4),
+            "avg_tokens_per_call": round(avg_tokens_per_call),
+            "share_pct": round(share_pct, 1),
+        })
+
+    daily_cost_rows = (
+        llm_cost_query.with_entities(
+            func.date(LLMCallCost.started_at),
+            func.coalesce(func.sum(LLMCallCost.total_cost_usd), 0.0),
+        )
+        .group_by(func.date(LLMCallCost.started_at))
+        .order_by(func.date(LLMCallCost.started_at))
+        .all()
+    )
+    spend_trend = [
+        {
+            "date": str(day),
+            "cost_usd": round(float(total_cost or 0.0), 4),
+        }
+        for day, total_cost in daily_cost_rows
+    ]
+
     recent_rows = (
-        db.query(ComplaintCase)
+        complaint_query
         .order_by(ComplaintCase.created_at.desc())
         .limit(10)
         .all()
@@ -327,7 +429,30 @@ def build_analytics_data(db: Session) -> dict:
 
     return {
         "total_complaints": total_complaints,
+        "selected_range_key": selected_range_key,
+        "selected_range_label": selected_range_label,
+        "range_options": [
+            {"key": key, "label": label}
+            for key, (label, _delta) in _ANALYTICS_RANGES.items()
+        ],
         "avg_resolution_seconds": round(avg_resolution, 1),
+        "llm_spend_total_usd": round(float(llm_spend_total), 4),
+        "llm_call_count": int(llm_call_count),
+        "tracked_case_count": int(tracked_case_count),
+        "completed_run_count": int(completed_run_count),
+        "avg_cost_per_complaint_usd": round(avg_cost_per_complaint, 4),
+        "avg_cost_per_resolution_usd": round(avg_cost_per_resolution, 4),
+        "avg_cost_per_call_usd": round(avg_cost_per_call, 4),
+        "tracking_coverage_pct": tracking_coverage_pct,
+        "agent_costs": agent_costs[:8],
+        "top_agent": agent_costs[0] if agent_costs else None,
+        "agent_cost_chart_labels": [
+            item["agent_name"].replace("_", " ").title() for item in agent_costs[:8]
+        ],
+        "agent_cost_chart_values": [
+            item["total_cost_usd"] for item in agent_costs[:8]
+        ],
+        "spend_trend": spend_trend,
         "category_counts": dict(category_counts.most_common(10)),
         "risk_counts": dict(risk_counts),
         "team_counts": dict(team_counts.most_common(10)),

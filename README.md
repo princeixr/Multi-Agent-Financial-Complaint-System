@@ -176,6 +176,12 @@ Start the server:
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+Historical workflow cost aggregates are backfilled into the cost ledger automatically at app startup. To run the backfill manually:
+
+```bash
+python3 scripts/backfill_cost_ledger.py
+```
+
 Open the **Lodge complaint** page from the app navigation (or the route your UI exposes for lodging a complaint). There is no separate voice server process: voice uses the same FastAPI app.
 
 ### Voice mode (Lodge intake)

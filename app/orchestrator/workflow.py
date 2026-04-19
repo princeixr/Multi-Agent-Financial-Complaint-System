@@ -522,7 +522,7 @@ def process_complaint(payload: dict) -> WorkflowState:
                     manual_review_required=False,
                     retry_count_total=int(initial_state.get("retry_count") or 0),
                     token_total=cost_cb.total_tokens or None,
-                    cost_estimate_usd=cost_cb.cost_usd() or None,
+                    cost_estimate_usd=None,
                 )
                 raise
 
@@ -538,7 +538,7 @@ def process_complaint(payload: dict) -> WorkflowState:
             manual_review_required=manual,
             retry_count_total=retries,
             token_total=cost_cb.total_tokens or None,
-            cost_estimate_usd=cost_cb.cost_usd() or None,
+            cost_estimate_usd=None,
         )
         log_workflow_event(
             "workflow_completed",
