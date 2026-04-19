@@ -109,7 +109,7 @@ def _redirect_to_login() -> RedirectResponse:
 
 
 def _redirect_to_dashboard() -> RedirectResponse:
-    return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url="/app", status_code=status.HTTP_302_FOUND)
 
 
 def _build_user_session_history_context(
@@ -157,7 +157,7 @@ def _post_login_redirect_url(role: str) -> str:
     """End-users land on profile first; admins and team use the app shell home."""
     if role == "user":
         return "/profile"
-    return "/"
+    return "/app"
 
 
 @router.get("/login", include_in_schema=False)
@@ -258,13 +258,19 @@ async def logout(request: Request):
 
 @router.get("/", include_in_schema=False)
 async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
-    """Show the public homepage when unauthenticated, else render the complaint dashboard."""
+    """Always render the public homepage at the root URL."""
+    return templates.TemplateResponse(request, "home.html", context={
+        "active_nav": "platform",
+        "user": None,
+    })
+
+
+@router.get("/app", include_in_schema=False)
+async def app_home(request: Request, page: int = 1, limit: int = 15):
+    """Authenticated app shell home for admin, team, and end-user views."""
     user = _get_current_user(request)
     if user is None:
-        return templates.TemplateResponse(request, "home.html", context={
-            "active_nav": "platform",
-            "user": None,
-        })
+        return _redirect_to_login()
 
     offset = (page - 1) * limit
 

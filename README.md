@@ -3,7 +3,7 @@
 TriageAI is a complaint management system for financial complaints. It includes:
 
 - admin and team dashboards
-- conversational style intagke for lodging complaints
+- conversational style intake for lodging complaints (chat and optional voice)
 - document upload, OCR, and document-aware complaint processing
 - Agentic AI for processing complaints
 - live workflow traces
@@ -175,6 +175,49 @@ Start the server:
 ```bash
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+Open the **Lodge complaint** page from the app navigation (or the route your UI exposes for lodging a complaint). There is no separate voice server process: voice uses the same FastAPI app.
+
+### Voice mode (Lodge intake)
+
+The Lodge page supports **chat** and an optional **Voice** mode (toggle on the page). Voice uses the browser’s **Web Speech API** for speech-to-text and, if configured, **ElevenLabs** for text-to-speech replies.
+
+1. **Start a session** on the Lodge page (same as chat).
+2. Enable **Voice** in the UI, then use the microphone control to start voice turns (pause after speaking to send; the agent can reply aloud when TTS is configured).
+
+**Browser / security context**
+
+- The microphone is only available in a **secure context**. That usually means:
+  - **`http://localhost:<port>`** or **`http://127.0.0.1:<port>`** — OK for development.
+  - Opening the app via **another hostname**, **another machine on the LAN**, or plain **`http://` on a non-loopback IP** may block the mic until you use **HTTPS**.
+- If speech recognition fails with a message about **HTTPS or localhost**, use local HTTPS below or access the app only via `localhost` / `127.0.0.1`.
+
+**Local HTTPS (recommended when the mic is blocked on HTTP)**
+
+From the repo root, generate trusted certs once (see comments in the script), then:
+
+```bash
+./scripts/dev_https.sh
+```
+
+By default this serves **`https://127.0.0.1:8001`** (override `PORT` / `HOST` if needed). Prerequisites: `mkcert` and certificate files under `.certs/` — see the header comments in [`scripts/dev_https.sh`](scripts/dev_https.sh).
+
+**Spoken agent replies (optional)**
+
+Set in `.env` (see [`.env.example`](.env.example)):
+
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_VOICE_ID` (or related env names listed in `.env.example`)
+
+Without these, Voice mode can still use the browser for recognition; spoken replies are disabled until ElevenLabs is configured.
+
+**ElevenLabs Conversational AI (optional, external agent)**
+
+To connect an ElevenLabs agent with Custom LLM to this backend, point its base URL at your public HTTPS API, for example:
+
+`https://<your-host>/api/v1/integrations/elevenlabs`
+
+Details and optional Bearer protection are documented in `.env.example` (`ELEVENLABS_CUSTOM_LLM_SECRET`, `ELEVENLABS_INTAKE_REQUIRE_USER`, etc.).
 
 ### Admin
 

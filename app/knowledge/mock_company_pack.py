@@ -28,11 +28,6 @@ COMPANY_PROFILE = {
         "documenting and triaging complaints for internal handling. Confirm whether the "
         "customer has already reported the issue to Mock Bank before closing intake."
     ),
-    "intake_do_not_say": [
-        "contact your bank",
-        "call your bank",
-        "reach out to your bank separately",
-    ],
     "intake_routing_guidance": [
         "Ask whether the customer has already reported the issue to the bank or spoken with customer support about it.",
         "If they already contacted the bank, capture that fact before marking intake complete.",

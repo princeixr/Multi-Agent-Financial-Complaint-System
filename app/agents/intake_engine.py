@@ -107,7 +107,6 @@ def _render_company_intake_context() -> str:
     profile = brief.get("company_profile") or {}
     display_name = profile.get("display_name") or "the bank"
     supported_products = ", ".join(profile.get("supported_products") or []) or "financial products"
-    banned_phrases = ", ".join(profile.get("intake_do_not_say") or [])
     routing_guidance = "\n".join(f"- {item}" for item in profile.get("intake_routing_guidance") or [])
     policy_lines = "\n".join(
         f"- {item.get('policy_id')}: {item.get('description')}"
@@ -119,7 +118,6 @@ def _render_company_intake_context() -> str:
         f"- Institution type: {profile.get('customer_identity') or 'financial institution'}\n"
         f"- Supported products: {supported_products}\n"
         f"- Role: {profile.get('intake_operator_style') or 'You are the internal complaints intake operator.'}\n"
-        f"- Never redirect the user away from the bank by saying phrases like: {banned_phrases or 'N/A'}\n"
         f"- Safe reference guidance: {profile.get('safe_reference_guidance') or 'Ask only for safe non-sensitive locators.'}\n"
         "### Internal routing guidance\n"
         f"{routing_guidance or '- Escalate urgent harm or fraud internally.'}\n"

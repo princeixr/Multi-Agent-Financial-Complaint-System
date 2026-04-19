@@ -568,9 +568,9 @@ TriageAI uses an agentic architecture to classify complaints, assess risk, route
   <p class="mt-2 text-sm text-on-surface-variant">
     {% if user.role == 'user' %}
     Your <a href="/profile" class="font-semibold text-primary hover:underline">profile</a> is ready, or open the
-    <a href="/" class="font-semibold text-primary hover:underline">dashboard</a> for complaints.
+    <a href="/app" class="font-semibold text-primary hover:underline">dashboard</a> for complaints.
     {% else %}
-    Head to the <a href="/" class="font-semibold text-primary hover:underline">dashboard</a> to view your complaint queue.
+    Head to the <a href="/app" class="font-semibold text-primary hover:underline">dashboard</a> to view your complaint queue.
     {% endif %}
   </p>
 </div>
@@ -585,7 +585,7 @@ TriageAI uses an agentic architecture to classify complaints, assess risk, route
     <p class="mt-2 text-sm text-on-surface-variant">Account settings and preferences.</p>
   </a>
   {% endif %}
-  <a href="/" class="rounded-xl bg-surface-container-low p-6 shadow transition-all hover:-translate-y-1 hover:shadow-lg">
+  <a href="/app" class="rounded-xl bg-surface-container-low p-6 shadow transition-all hover:-translate-y-1 hover:shadow-lg">
     <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
       <span class="material-symbols-outlined text-2xl">dashboard</span>
     </div>

@@ -10,13 +10,13 @@
   <p class="text-lg font-headline font-bold text-on-surface-variant/60">
     {% if access_denied %}Access denied{% else %}Case not found{% endif %}
   </p>
-  <a href="/" class="text-sm text-primary hover:underline mt-3 inline-block font-semibold">← Back to dashboard</a>
+  <a href="/app" class="text-sm text-primary hover:underline mt-3 inline-block font-semibold">← Back to dashboard</a>
 </div>
 {% else %}
 
 <!-- Back Navigation -->
 <div class="mb-6 flex items-center gap-2">
-  <a href="/" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
+  <a href="{% if user.role == 'team' %}/app{% else %}/queue{% endif %}" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
     <span class="material-symbols-outlined text-lg">arrow_back</span>
     {% if user.role == 'user' %}My Complaints{% elif user.role == 'team' %}My Queue{% else %}Queue{% endif %}
   </a>

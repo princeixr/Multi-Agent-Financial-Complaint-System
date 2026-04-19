@@ -124,7 +124,7 @@
   <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto mt-2">
     {% if user.role == 'admin' %}
     {% set nav_items = [
-      ("dashboard",  "/",              "dashboard",    "Overview"),
+      ("dashboard",  "/app",           "dashboard",    "Overview"),
       ("queue",      "/queue",         "list_alt",     "Queue"),
       ("analytics",  "/analytics",     "analytics",    "Analytics"),
       ("evaluation", "/evaluation",    "fact_check",   "Evaluation"),
@@ -134,7 +134,7 @@
     ] %}
     {% elif user.role == 'team' %}
     {% set nav_items = [
-      ("dashboard",  "/",              "list_alt",     "My Queue"),
+      ("dashboard",  "/app",           "list_alt",     "My Queue"),
       ("settings",   "/settings",      "settings",     "Settings"),
     ] %}
     {% else %}
