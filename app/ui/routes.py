@@ -8,6 +8,7 @@ import logging
 import uuid
 from pathlib import Path
 
+from sqlalchemy import case, func
 from fastapi import APIRouter, Request, Response, Form, status
 from fastapi.responses import RedirectResponse
 from fastapi.responses import StreamingResponse
@@ -17,6 +18,7 @@ from app.db.session import get_db
 from app.db.models import (
     ComplaintCase,
     ClassificationRecord,
+    LLMCallCost,
     RiskRecord,
     ResolutionRecord,
     UserAccount,
@@ -26,12 +28,11 @@ from app.db.models import (
 from app.ui.context import (
     build_case_summary,
     build_case_detail,
-    build_analytics_data,
-    build_production_evaluation_case_data,
+    build_admin_overview_data_for_range,
+    build_operations_data,
     build_evaluation_case_data,
     build_evaluation_data,
     build_settings_data,
-    build_admin_overview_data,
     _TERMINAL_STATUSES,
 )
 from app.evals.service import run_dataset_benchmark
@@ -44,6 +45,18 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter(tags=["ui"])
+
+
+def _atomic_call_count_expr():
+    return func.coalesce(
+        func.sum(
+            case(
+                (LLMCallCost.status == "backfilled_aggregate", 0),
+                else_=1,
+            )
+        ),
+        0,
+    )
 
 
 def _serialize_trace_step(step: WorkflowStep) -> dict:
@@ -75,6 +88,11 @@ def _serialize_trace_step(step: WorkflowStep) -> dict:
         "latency_ms": round(step.latency_ms, 1) if step.latency_ms else 0,
         "model_name": step.model_name,
         "confidence": step.confidence,
+        "llm_call_count": int(step.llm_call_count or 0),
+        "prompt_tokens": int(step.prompt_tokens or 0),
+        "completion_tokens": int(step.completion_tokens or 0),
+        "token_total": int(step.token_total or 0),
+        "cost_estimate_usd": float(step.cost_estimate_usd or 0.0),
         "error_type": step.error_type,
         "error_message": step.error_message,
         "output": output,
@@ -266,7 +284,7 @@ async def home_or_dashboard(request: Request, page: int = 1, limit: int = 15):
 
 
 @router.get("/app", include_in_schema=False)
-async def app_home(request: Request, page: int = 1, limit: int = 15):
+async def app_home(request: Request, page: int = 1, limit: int = 15, range: str = "24h"):
     """Authenticated app shell home for admin, team, and end-user views."""
     user = _get_current_user(request)
     if user is None:
@@ -276,7 +294,7 @@ async def app_home(request: Request, page: int = 1, limit: int = 15):
 
     with get_db() as db:
         if user["role"] == "admin":
-            overview = build_admin_overview_data(db)
+            overview = build_admin_overview_data_for_range(db, range_key=range)
             return templates.TemplateResponse(request, "admin_overview.html", context={
                 **overview,
                 "active_nav": "dashboard",
@@ -472,7 +490,7 @@ async def complaint_detail(request: Request, case_id: str):
                 "access_denied": True,
             })
 
-        case = build_case_detail(db_case)
+        case = build_case_detail(db_case, db)
 
         # Find associated workflow run for trace link
         run = (
@@ -740,6 +758,29 @@ async def supervisor_trace(request: Request, run_id: str):
         run = None
         current_case_id = ""
         if run_row is not None:
+            ledger_totals = (
+                db.query(
+                    func.count(LLMCallCost.id),
+                    _atomic_call_count_expr(),
+                    func.coalesce(func.sum(LLMCallCost.total_tokens), 0),
+                    func.coalesce(func.sum(LLMCallCost.total_cost_usd), 0.0),
+                )
+                .filter(LLMCallCost.run_id == run_row.run_id)
+                .one()
+            )
+            ledger_row_count = int(ledger_totals[0] or 0)
+            if ledger_row_count > 0:
+                atomic_call_count = int(ledger_totals[1] or 0)
+                llm_call_count = atomic_call_count if atomic_call_count > 0 else None
+                llm_call_count_available = atomic_call_count > 0
+                token_total = int(ledger_totals[2] or 0)
+                cost_estimate_total = float(ledger_totals[3] or 0.0)
+            else:
+                raw_call_count = run_row.llm_call_count
+                llm_call_count = int(raw_call_count) if raw_call_count is not None else None
+                llm_call_count_available = raw_call_count is not None
+                token_total = int(run_row.token_total or 0)
+                cost_estimate_total = float(run_row.cost_estimate_total or 0.0)
             linked_case = resolve_case_record(db, run_row.case_id or "")
             current_case_id = (linked_case.public_case_id if linked_case is not None else (run_row.case_id or ""))
             run = {
@@ -749,6 +790,10 @@ async def supervisor_trace(request: Request, run_id: str):
                 "company_id": run_row.company_id,
                 "final_route": run_row.final_route,
                 "final_severity": run_row.final_severity,
+                "llm_call_count": llm_call_count,
+                "llm_call_count_available": llm_call_count_available,
+                "token_total": token_total,
+                "cost_estimate_total": cost_estimate_total,
             }
 
         step_data = []
@@ -848,9 +893,9 @@ async def trace_stream(request: Request, run_id: str):
     )
 
 
-@router.get("/analytics", include_in_schema=False)
-async def analytics(request: Request, range: str = "all"):
-    """Analytics overview — charts and KPIs."""
+@router.get("/operations", include_in_schema=False)
+async def operations(request: Request, range: str = "all"):
+    """Operations overview — cost, agent performance, and throughput analytics."""
     user = _get_current_user(request)
     if user is None:
         return _redirect_to_login()
@@ -858,18 +903,24 @@ async def analytics(request: Request, range: str = "all"):
         return _redirect_to_dashboard()
 
     with get_db() as db:
-        data = build_analytics_data(db, range_key=range)
+        data = build_operations_data(db, range_key=range)
 
     return templates.TemplateResponse(request, "analytics.html", context={
         "data": data,
-        "active_nav": "analytics",
+        "active_nav": "operations",
         "user": user,
     })
 
 
+@router.get("/analytics", include_in_schema=False)
+async def analytics_redirect(request: Request, range: str = "all"):
+    """Backward-compatible redirect to the operations dashboard."""
+    return RedirectResponse(url=f"/operations?range={range}", status_code=status.HTTP_302_FOUND)
+
+
 @router.get("/analytics/cases/{case_id}", include_in_schema=False)
 async def analytics_case_evaluation(request: Request, case_id: str):
-    """Admin production-evaluation report for a real complaint case."""
+    """Backward-compatible redirect from legacy analytics case drilldown."""
     user = _get_current_user(request)
     if user is None:
         return _redirect_to_login()
@@ -878,13 +929,8 @@ async def analytics_case_evaluation(request: Request, case_id: str):
 
     with get_db() as db:
         db_case = resolve_case_record(db, case_id)
-        resolved_id = db_case.id if db_case is not None else case_id
-    data = build_production_evaluation_case_data(resolved_id)
-    return templates.TemplateResponse(request, "analytics_case_detail.html", context={
-        "data": data,
-        "active_nav": "analytics",
-        "user": user,
-    })
+        resolved_id = db_case.public_case_id if db_case is not None else case_id
+    return RedirectResponse(url=f"/complaints/{resolved_id}", status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/settings", include_in_schema=False)

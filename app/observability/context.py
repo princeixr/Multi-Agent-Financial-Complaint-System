@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -28,6 +29,7 @@ class ActiveStep:
 
 _active: ContextVar[ActiveRun | None] = ContextVar("workflow_active_run", default=None)
 _active_step: ContextVar[ActiveStep | None] = ContextVar("workflow_active_step", default=None)
+_active_llm_callbacks: ContextVar[list[Any]] = ContextVar("workflow_active_llm_callbacks", default=[])
 
 
 def get_active_run() -> ActiveRun | None:
@@ -52,6 +54,18 @@ def set_active_step(active_step: ActiveStep) -> Token:
 
 def reset_active_step(token: Token) -> None:
     _active_step.reset(token)
+
+
+def get_active_llm_callbacks() -> list[Any]:
+    return list(_active_llm_callbacks.get())
+
+
+def set_active_llm_callbacks(callbacks: list[Any]) -> Token:
+    return _active_llm_callbacks.set(list(callbacks))
+
+
+def reset_active_llm_callbacks(token: Token) -> None:
+    _active_llm_callbacks.reset(token)
 
 
 def set_case_id(case_id: str) -> None:

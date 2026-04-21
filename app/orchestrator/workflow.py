@@ -32,7 +32,14 @@ from app.documents.service import (
     wait_for_case_documents,
 )
 from app.knowledge.mock_company_pack import deployment_label
-from app.observability.context import ActiveRun, reset_active_run, set_active_run, set_trace_id
+from app.observability.context import (
+    ActiveRun,
+    reset_active_llm_callbacks,
+    reset_active_run,
+    set_active_llm_callbacks,
+    set_active_run,
+    set_trace_id,
+)
 from app.observability.cost import TokenCostCallback
 from app.observability.events import log_workflow_event
 from app.observability.instrumentation import wrap_node, wrap_supervisor_node
@@ -468,6 +475,7 @@ def process_complaint(payload: dict) -> WorkflowState:
     ctx_token = set_active_run(ar)
     tracer = get_workflow_tracer()
     cost_cb = TokenCostCallback()
+    callback_token = set_active_llm_callbacks([cost_cb])
 
     initial_state: WorkflowState = {
         "raw_payload": payload,
@@ -482,7 +490,6 @@ def process_complaint(payload: dict) -> WorkflowState:
             "deployment": log_label,
             "workflow_version": workflow_version(),
         },
-        "callbacks": [cost_cb],
     }
 
     final_state: WorkflowState | None = None
@@ -550,4 +557,5 @@ def process_complaint(payload: dict) -> WorkflowState:
         logger.info("Workflow complete – routed to %s", final_state.get("routed_to"))
         return final_state
     finally:
+        reset_active_llm_callbacks(callback_token)
         reset_active_run(ctx_token)

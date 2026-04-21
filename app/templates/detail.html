@@ -59,6 +59,43 @@
   </div>
 </div>
 
+{% if user.role == 'admin' %}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-b-2 border-secondary">
+    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Total LLM Cost</div>
+    <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.2f"|format(case.cost_estimate_usd or 0.0) }}</div>
+    <p class="mt-2 text-xs text-on-surface-variant">Complaint-level spend rolled up across workflow execution.</p>
+  </div>
+  <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-b-2 border-primary">
+    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Total Tokens</div>
+    <div class="text-3xl font-headline font-extrabold text-on-surface">{% if case.token_total %}{{ "{:,}".format(case.token_total) }}{% else %}—{% endif %}</div>
+    <p class="mt-2 text-xs text-on-surface-variant">Useful for understanding prompt inflation and retrieval-heavy flows.</p>
+  </div>
+  <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-b-2 border-primary-container">
+    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">LLM Calls</div>
+    <div class="text-3xl font-headline font-extrabold text-on-surface">
+      {% if case.latest_run and case.latest_run.llm_call_count_available %}
+      {{ case.latest_run.llm_call_count }}
+      {% else %}
+      —
+      {% endif %}
+    </div>
+    <p class="mt-2 text-xs text-on-surface-variant">
+      {% if case.latest_run and not case.latest_run.llm_call_count_available %}
+      Not available for historical aggregate-only runs.
+      {% else %}
+      Latest workflow run only.
+      {% endif %}
+    </p>
+  </div>
+  <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-b-2 border-on-tertiary-container">
+    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Latest Run Cost</div>
+    <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.2f"|format(case.latest_run.cost_estimate_total if case.latest_run else 0.0) }}</div>
+    <p class="mt-2 text-xs text-on-surface-variant">Use trace for step-level breakdown.</p>
+  </div>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-12 gap-6">
 
   <!-- Left Column: Narrative + Root Cause + Resolution -->
@@ -332,6 +369,63 @@
           <div class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-0.5">Assigned Team</div>
         </div>
       </div>
+    </div>
+    {% endif %}
+
+    {% if user.role == 'admin' %}
+    <div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-primary">payments</span>
+        <h2 class="font-headline font-bold text-on-surface">Cost Breakdown</h2>
+      </div>
+      <div class="space-y-3">
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">Complaint Total</span>
+          <span class="font-mono font-semibold text-on-surface">${{ "%.2f"|format(case.cost_estimate_usd or 0.0) }}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">Complaint Tokens</span>
+          <span class="font-mono text-on-surface">{% if case.token_total %}{{ "{:,}".format(case.token_total) }}{% else %}—{% endif %}</span>
+        </div>
+        {% if case.latest_run %}
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">Latest Run</span>
+          <span class="font-mono text-on-surface">${{ "%.2f"|format(case.latest_run.cost_estimate_total or 0.0) }}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">Latest Run Tokens</span>
+          <span class="font-mono text-on-surface">{% if case.latest_run.token_total %}{{ "{:,}".format(case.latest_run.token_total) }}{% else %}—{% endif %}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">LLM Calls</span>
+          <span class="font-mono text-on-surface">
+            {% if case.latest_run.llm_call_count_available %}
+            {{ case.latest_run.llm_call_count }}
+            {% else %}
+            —
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+      {% if case.agent_costs %}
+      <div class="mt-5 pt-5 border-t border-outline-variant/10">
+        <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-3">Agent Contribution</div>
+        <div class="space-y-3">
+          {% for agent in case.agent_costs %}
+          <div>
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="font-semibold text-on-surface">{{ agent.agent_name | replace('_',' ') | title }}</span>
+              <span class="font-mono text-on-surface-variant">${{ "%.2f"|format(agent.total_cost_usd) }} · {{ agent.share_pct }}%</span>
+            </div>
+            <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+              <div class="h-full bg-secondary rounded-full" style="width: {{ [agent.share_pct, 100] | min }}%"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
