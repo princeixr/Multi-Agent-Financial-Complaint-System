@@ -1,96 +1,209 @@
 # TriageAI
 
-TriageAI is a complaint management system for financial complaints. It includes:
+TriageAI is a supervisor-led, multi-agent complaint intelligence system for financial services. It does not stop at intake or classification. The codebase implements a full complaint operating model: conversational intake, document ingestion and OCR, agent orchestration, risk and root-cause analysis, compliance checks, routing, resolution planning, live traces, and evaluation infrastructure.
 
-- admin and team dashboards
-- conversational style intake for lodging complaints (chat and optional voice)
-- document upload, OCR, and document-aware complaint processing
-- Agentic AI for processing complaints
-- live workflow traces
-- benchmark and production evaluation dashboards
+This repository is meant to show depth. The architecture on the home page is not a concept graphic. It maps directly to the workflow, storage, retrieval, observability, and evaluation code in this repo.
 
-The app is server-rendered with Jinja templates and stores its operational state in PostgreSQL.
+## Why This Repo Is Different
 
-## What the app does
+Most complaint demos stop at "classify a complaint with an LLM."
 
-Core flow:
+TriageAI goes further:
 
-1. A user lodges a complaint through the intake chat.
-2. Supporting documents can be uploaded during intake.
-3. Documents are stored and processed locally.
-4. The complaint is registered immediately.
-5. The backend workflow runs:
-   - document gate
-   - document consistency check
-   - classification
-   - risk
-   - root cause
-   - resolution
-   - compliance / routing
-6. Admins can review:
-   - live traces
-   - complaint analytics
-   - production evaluation reports
-   - benchmark evaluation datasets and runs
+- A central supervisor coordinates specialist agents instead of running one monolithic prompt.
+- Uploaded evidence is processed before downstream analysis, including OCR for scanned PDFs and images.
+- Complaint decisions are persisted as workflow runs and workflow steps with token, latency, and cost rollups.
+- Historical complaints and company knowledge are retrievable through PostgreSQL + pgvector.
+- Production complaints can be evaluated after execution, and benchmark datasets can be materialized and scored.
+- The product includes admin-facing visibility: traces, analytics, evaluation views, and case detail pages.
 
-## Main features
+## Architecture
 
-- LangGraph-based complaint workflow
-- OpenAI or DeepSeek chat model support
-- PostgreSQL + pgvector retrieval
-- OCR pipeline for:
-  - digital PDFs
-  - scanned PDFs
-  - PNG / JPG / JPEG
-- session history and past complaints for end users
-- production complaint evaluation with:
-  - system evaluation
-  - LLM judge report
-- benchmark evaluation against DB-backed evaluation datasets
-- live trace page backed by persisted workflow runs and steps
-- website-friendly case IDs like `CASE00001`
+The homepage architecture is the system architecture:
 
-## Tech stack
+```mermaid
+flowchart TD
+    U[Complaint Intake<br/>chat or voice] --> D[Document Gate]
+    D --> C[Document Consistency Check]
+    C --> S[Supervisor]
+
+    S --> CL[Classification Agent]
+    S --> RK[Risk Agent]
+    S --> CP[Compliance Agent]
+    S --> RC[Root Cause Agent]
+    S --> RT[Routing Agent]
+    S --> RV[Review Agent]
+    S --> RS[Resolution Agent]
+
+    CL --> S
+    RK --> S
+    CP --> S
+    RC --> S
+    RT --> S
+    RV --> S
+    RS --> S
+
+    S --> O[Persisted Outcome<br/>case status, route, severity]
+    O --> T[Live Trace + Analytics + Evaluation]
+```
+
+### Supervisor-Led Agentic Flow
+
+- `intake` normalizes and validates the case payload.
+- `document_gate` waits for uploaded evidence to finish background processing.
+- `check_document_consistency` compares the complaint narrative with extracted document facts.
+- `supervisor` decides which specialist to run next.
+- Specialists cover classification, risk, compliance, root cause, routing, review, and resolution.
+- Final outputs are persisted with workflow metadata for later inspection.
+
+The implementation lives in [app/orchestrator/workflow.py](app/orchestrator/workflow.py).
+
+## What Exists In Code
+
+### 1. Evidence-First Complaint Processing
+
+This system treats uploaded evidence as a first-class input, not an attachment afterthought.
+
+- PDF text extraction for digital documents
+- OCR for scanned PDFs via `pdftoppm` + `tesseract`
+- OCR for screenshots and images
+- fact extraction for amounts, dates, reference numbers, and signals
+- document chunking and embeddings for downstream retrieval
+- document-vs-narrative contradiction checks before agent reasoning
+
+See [app/documents/service.py](app/documents/service.py).
+
+### 2. Specialist Agents, Not One Giant Prompt
+
+The system has separate agents and schemas for:
+
+- intake
+- classification
+- risk
+- root cause
+- resolution
+- compliance
+- review
+- routing
+
+This is backed by dedicated prompts, structured schemas, and a supervisor router across the `app/agents`, `app/prompts`, and `app/schemas` packages.
+
+### 3. Retrieval Backed By Real Infrastructure
+
+Retrieval is not mocked behind an in-memory demo.
+
+- complaint similarity search is backed by PostgreSQL + pgvector
+- embeddings support local HuggingFace models or OpenAI
+- retrieval can surface historical complaint patterns and company context
+
+See [app/retrieval/complaint_index.py](app/retrieval/complaint_index.py) and [app/retrieval/ingest.py](app/retrieval/ingest.py).
+
+### 4. Observability Built Into The Workflow
+
+The repo includes a real forensic layer for AI execution:
+
+- workflow runs persisted to Postgres
+- per-step snapshots and state diffs
+- trace IDs and OpenTelemetry integration
+- token, latency, and cost accounting
+- version tracking for workflow, prompts, knowledge pack, and model
+- admin UI for live trace inspection
+
+See [app/observability/persistence.py](app/observability/persistence.py), [app/observability/tracing.py](app/observability/tracing.py), and [app/templates/trace.html](app/templates/trace.html).
+
+### 5. Evaluation Infrastructure, Not Just Manual Spot Checks
+
+This repo includes both production evaluation and benchmark-style evaluation:
+
+- database-backed evaluation datasets
+- weak-gold label generation
+- rubric-based LLM judge runs
+- disagreement queues for human review
+- production case evaluation against real workflow outputs
+
+See [app/evals/service.py](app/evals/service.py) and [app/evals/judge.py](app/evals/judge.py).
+
+### 6. Product Surface Beyond The API
+
+The repo includes a server-rendered product, not only backend endpoints.
+
+- public-facing marketing and home pages
+- end-user lodge flow with conversational intake
+- optional voice intake
+- admin dashboards
+- analytics and evaluation pages
+- team and queue views
+- case detail and resolution history pages
+
+The UI templates live under [app/templates](app/templates).
+
+## Repository Map
+
+```text
+app/
+  agents/          specialist agents, supervisor, tools, LLM helpers
+  api/             FastAPI endpoints and intake integrations
+  db/              ORM models and session management
+  documents/       upload persistence, OCR, extraction, summaries
+  evals/           benchmark runners, judge, review services
+  knowledge/       company knowledge and taxonomy context
+  observability/   tracing, event logging, versioning, cost tracking
+  orchestrator/    LangGraph workflow, rules, retrieval gates, state
+  retrieval/       embeddings, ingest, pgvector-backed indexes
+  schemas/         structured outputs for agents and cases
+  templates/       product UI and admin views
+  ui/              server-rendered routes and page context
+tests/
+architecture.md    deeper knowledge-base and regulatory architecture
+```
+
+## Product Highlights
+
+- Supervisor-led LangGraph workflow
+- complaint intake via chat with optional voice mode
+- document-aware complaint processing
+- scanned-PDF and image OCR
+- complaint similarity retrieval with pgvector
+- risk, root-cause, compliance, and routing agents
+- live workflow trace UI
+- production evaluation reports
+- benchmark dataset and judge infrastructure
+- website-friendly case IDs such as `CASE00001`
+
+## Tech Stack
 
 - Python 3.11+
 - FastAPI
-- Jinja2 templates
+- Jinja2
 - SQLAlchemy
 - PostgreSQL
 - pgvector
 - LangGraph / LangChain
-- OpenTelemetry-based local workflow tracing
-- optional LangSmith tracing for LangChain / LangGraph runs
+- OpenTelemetry
+- OpenAI or DeepSeek
+- optional ElevenLabs voice output
 
-## Prerequisites
+## Running Locally
 
-Required:
+### Prerequisites
 
-- Python 3.11 or newer
-- PostgreSQL with pgvector
-- one LLM provider configured:
-  - OpenAI, or
-  - DeepSeek
+- Python 3.11+
+- PostgreSQL with `pgvector`
+- one LLM provider configured: OpenAI or DeepSeek
+- `tesseract` and `poppler` for OCR
 
-Recommended local tools:
+Recommended:
 
-- `uv` for dependency management
-- Docker for local Postgres
+- `uv`
+- Docker
 
-For OCR:
-
-- `tesseract`
-- `poppler` / `poppler-utils`
-
-## Environment setup
-
-Copy the example file:
+### Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Minimum variables to set:
+Minimum variables:
 
 ```env
 DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/complaints
@@ -98,22 +211,19 @@ LLM_PROVIDER=openai
 OPENAI_API_KEY=...
 ```
 
-If using DeepSeek instead:
+DeepSeek option:
 
 ```env
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=...
 ```
 
-Common optional variables:
+Useful optional variables:
 
 - `OPENAI_CHAT_MODEL`
 - `DEEPSEEK_CHAT_MODEL`
-- `EMBEDDING_PROVIDER=huggingface` or `openai`
+- `EMBEDDING_PROVIDER`
 - `HF_EMBEDDING_MODEL`
-- `HF_DEVICE`
-- `LOG_LEVEL`
-- `SQL_ECHO`
 - `TRACE_INTAKE_TO_LANGSMITH`
 - `LANGCHAIN_TRACING_V2`
 - `LANGCHAIN_API_KEY`
@@ -121,16 +231,15 @@ Common optional variables:
 - `ELEVENLABS_API_KEY`
 - `ELEVENLABS_VOICE_ID`
 
-## Install dependencies
+### Install
 
-### Option 1: uv
+With `uv`:
 
 ```bash
 uv sync
-uv run python -m uvicorn main:app --reload
 ```
 
-### Option 2: pip + venv
+With `pip`:
 
 ```bash
 python3 -m venv .venv
@@ -138,111 +247,86 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Install OCR dependencies
+### OCR Dependencies
 
-### macOS
+macOS:
 
 ```bash
 brew install tesseract poppler
 ```
 
-### Ubuntu / Debian
+Ubuntu / Debian:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y tesseract-ocr poppler-utils
 ```
 
-## Run PostgreSQL
-
-### Local Docker DB only
+### Database
 
 ```bash
 docker compose up db -d
 ```
 
-For Server deployment run both app and db
+### Start The App
+
+```bash
+python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+For a full local stack:
 
 ```bash
 docker compose up --build -d
 docker compose logs -f app
 ```
 
-## Run the app locally
-
-Start the server:
-
-```bash
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Historical workflow cost aggregates are backfilled into the cost ledger automatically at app startup. To run the backfill manually:
+Historical workflow cost aggregates are backfilled on startup. You can also run that manually:
 
 ```bash
 python3 scripts/backfill_cost_ledger.py
 ```
 
-Open the **Lodge complaint** page from the app navigation (or the route your UI exposes for lodging a complaint). There is no separate voice server process: voice uses the same FastAPI app.
+## Voice Intake
 
-### Voice mode (Lodge intake)
+The lodge flow supports chat and optional voice mode.
 
-The Lodge page supports **chat** and an optional **Voice** mode (toggle on the page). Voice uses the browser’s **Web Speech API** for speech-to-text and, if configured, **ElevenLabs** for text-to-speech replies.
+- speech-to-text uses the browser Web Speech API
+- spoken responses can use ElevenLabs when configured
+- microphone access requires `localhost` or HTTPS
 
-1. **Start a session** on the Lodge page (same as chat).
-2. Enable **Voice** in the UI, then use the microphone control to start voice turns (pause after speaking to send; the agent can reply aloud when TTS is configured).
-
-**Browser / security context**
-
-- The microphone is only available in a **secure context**. That usually means:
-  - **`http://localhost:<port>`** or **`http://127.0.0.1:<port>`** — OK for development.
-  - Opening the app via **another hostname**, **another machine on the LAN**, or plain **`http://` on a non-loopback IP** may block the mic until you use **HTTPS**.
-- If speech recognition fails with a message about **HTTPS or localhost**, use local HTTPS below or access the app only via `localhost` / `127.0.0.1`.
-
-**Local HTTPS (recommended when the mic is blocked on HTTP)**
-
-From the repo root, generate trusted certs once (see comments in the script), then:
+For local HTTPS:
 
 ```bash
 ./scripts/dev_https.sh
 ```
 
-By default this serves **`https://127.0.0.1:8001`** (override `PORT` / `HOST` if needed). Prerequisites: `mkcert` and certificate files under `.certs/` — see the header comments in [`scripts/dev_https.sh`](scripts/dev_https.sh).
+By default this serves `https://127.0.0.1:8001`. The certificate setup notes are in [scripts/dev_https.sh](scripts/dev_https.sh).
 
-**Spoken agent replies (optional)**
+## Demo Accounts
 
-Set in `.env` (see [`.env.example`](.env.example)):
-
-- `ELEVENLABS_API_KEY`
-- `ELEVENLABS_VOICE_ID` (or related env names listed in `.env.example`)
-
-Without these, Voice mode can still use the browser for recognition; spoken replies are disabled until ElevenLabs is configured.
-
-**ElevenLabs Conversational AI (optional, external agent)**
-
-To connect an ElevenLabs agent with Custom LLM to this backend, point its base URL at your public HTTPS API, for example:
-
-`https://<your-host>/api/v1/integrations/elevenlabs`
-
-Details and optional Bearer protection are documented in `.env.example` (`ELEVENLABS_CUSTOM_LLM_SECRET`, `ELEVENLABS_INTAKE_REQUIRE_USER`, etc.).
-
-### Admin
+Admin:
 
 - email: `admin@triage.ai`
 - password: `admin123`
 
-### End user
+End user:
 
 - email: `user@triage.ai`
 - password: `user123`
 
-### Team accounts
+Team users:
 
-Multiple team accounts are seeded automatically : 
+- seeded automatically
+- password pattern: `<local-part>123`
+- reference: [Team Credentials](https://github.com/ayman-tech/Multi-Agent-Complaint-System/wiki/Team-Credentials)
 
-Passwords follow the pattern: (Team Credentials)[https://github.com/ayman-tech/Multi-Agent-Complaint-System/wiki/Team-Credentials]
+## Further Reading
 
-password : `<local-part>123`
+- [architecture.md](architecture.md)
+- [repository_architecture.pdf](repository_architecture.pdf)
+- [repository_architecture_detailed.pdf](repository_architecture_detailed.pdf)
 
-## License / usage
+## License
 
-No license file is currently included in this repository. Treat usage and redistribution as private unless you add an explicit license.
+No license file is currently included in this repository. Treat usage and redistribution as private unless an explicit license is added.
