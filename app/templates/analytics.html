@@ -1,209 +1,84 @@
 {% extends "base.html" %}
-{% block title %}Analytics{% endblock %}
+{% block title %}Operations{% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<div class="flex justify-between items-end mb-10">
-  <div>
-    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-1">Analytics · Admin View</p>
-    <h1 class="text-3xl font-headline font-extrabold tracking-tight text-primary">Complaint Analytics</h1>
-    <p class="text-on-surface-variant mt-1">Operational monitoring, spend visibility, and agent efficiency for real complaint workflows.</p>
-  </div>
-  <div class="flex gap-2 bg-surface-container-low p-1 rounded-lg">
-    {% for option in data.range_options %}
-    <a href="/analytics?range={{ option.key }}"
-       class="px-4 py-1.5 rounded-md text-sm transition-colors {% if option.key == data.selected_range_key %}bg-surface-container-lowest shadow-sm font-semibold text-on-surface{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}">
-      {{ option.label }}
-    </a>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- Production Evaluation Summary -->
-<section class="mb-8">
-  <div class="flex items-center justify-between mb-5">
+<div class="space-y-8 -mt-2">
+  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
     <div>
-      <h2 class="font-headline font-bold text-xl text-on-surface">Production Evaluation Summary</h2>
-      <p class="text-sm text-on-surface-variant">LLM judge and system assessment results for real lodged complaints.</p>
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-1">Operations · Admin View</p>
+      <h1 class="text-3xl font-headline font-extrabold tracking-tight text-primary">Operations Center</h1>
+      <p class="text-on-surface-variant mt-1">Spend visibility, agent efficiency, token growth, and complaint-level operational cost analysis.</p>
+    </div>
+    <div class="flex gap-2 bg-surface-container-low p-1 rounded-lg">
+      {% for option in data.range_options %}
+      <a href="/operations?range={{ option.key }}"
+         class="px-4 py-1.5 rounded-md text-sm transition-colors {% if option.key == data.selected_range_key %}bg-surface-container-lowest shadow-sm font-semibold text-on-surface{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}">
+        {{ option.label }}
+      </a>
+      {% endfor %}
     </div>
   </div>
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm">
-      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Evaluated Complaints</div>
-      <div class="text-3xl font-headline font-extrabold text-on-surface">{{ data.production_evaluation.summary.evaluated_count }}</div>
-    </div>
-    <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-l-4 border-secondary">
-      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Pass</div>
-      <div class="text-3xl font-headline font-extrabold text-secondary">{{ data.production_evaluation.summary.pass_count }}</div>
-    </div>
-    <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-l-4 border-primary">
-      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Needs Review</div>
-      <div class="text-3xl font-headline font-extrabold text-primary">{{ data.production_evaluation.summary.needs_review_count }}</div>
-    </div>
-    <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border-l-4 border-error">
-      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Fail</div>
-      <div class="text-3xl font-headline font-extrabold text-error">{{ data.production_evaluation.summary.fail_count }}</div>
-    </div>
-  </div>
-</section>
 
-<!-- Summary Tiles -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-  <div class="aurora-gradient p-8 rounded-lg text-white shadow-xl flex items-center justify-between">
-    <div>
-      <p class="text-indigo-100 text-sm font-bold uppercase tracking-wider mb-2">Complaint Volume</p>
-      <h3 class="text-5xl font-extrabold font-headline">{{ data.total_complaints | default(0) }}</h3>
-      <p class="text-indigo-200 text-xs mt-4 flex items-center gap-1">
-        <span class="material-symbols-outlined text-sm">pending_actions</span>
-        {{ data.selected_range_label }} intake count
-      </p>
-    </div>
-    <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
-      <span class="material-symbols-outlined text-4xl">pending_actions</span>
-    </div>
-  </div>
-  <div class="p-8 rounded-lg text-white shadow-xl flex items-center justify-between"
-       style="background: linear-gradient(135deg, #006a62 0%, #004d46 100%);">
-    <div>
-      <p class="text-secondary-fixed text-sm font-bold uppercase tracking-wider mb-2">Avg. Resolution Time</p>
-      <h3 class="text-5xl font-extrabold font-headline">
-        {{ "%.1f" | format(data.avg_resolution_seconds / 60) if data.avg_resolution_seconds else "0" }}<span class="text-2xl ml-1 font-normal">min</span>
-      </h3>
-      <p class="text-secondary-fixed text-xs mt-4 flex items-center gap-1">
-        <span class="material-symbols-outlined text-sm">check_circle</span>
-        Across {{ data.completed_run_count }} completed runs
-      </p>
-    </div>
-    <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
-      <span class="material-symbols-outlined text-4xl">task_alt</span>
-    </div>
-  </div>
-</div>
-
-<!-- Cost KPI Tiles -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-  <div class="bg-surface-container-low p-6 rounded-xl space-y-2">
-    <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Total LLM Spend ({{ data.selected_range_label }})</span>
-    <div class="flex items-baseline gap-2">
-      <span class="text-3xl font-headline font-black text-on-surface">${{ "%.2f"|format(data.llm_spend_total_usd) }}</span>
-      <span class="text-secondary text-sm font-bold">{{ data.llm_call_count }} calls</span>
-    </div>
-    <p class="text-sm text-on-surface-variant">Tracks direct model spend from the LangSmith-backed call ledger for this reporting window.</p>
-    <div class="h-2.5 bg-surface-container-high rounded-full overflow-hidden">
-      <div class="h-full bg-secondary rounded-full" style="width: {{ [data.tracking_coverage_pct, 100] | min }}%"></div>
-    </div>
-    <p class="text-[11px] text-on-surface-variant">{{ data.tracking_coverage_pct }}% of complaints in this window have tracked LLM cost.</p>
-  </div>
-  <div class="bg-surface-container-low p-6 rounded-xl space-y-2">
-    <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Cost per Resolution</span>
-    <div class="flex items-baseline gap-2">
-      <span class="text-3xl font-headline font-black text-on-surface">${{ "%.2f"|format(data.avg_cost_per_resolution_usd) }}</span>
-      <span class="text-on-surface-variant text-sm font-bold">{{ data.completed_run_count }} completed</span>
-    </div>
-    <p class="text-sm text-on-surface-variant">Unit economics for complaints that reached completed workflow status in the selected range.</p>
-    <div class="h-2.5 bg-surface-container-high rounded-full overflow-hidden">
-      <div class="h-full bg-primary rounded-full" style="width: {{ [data.avg_cost_per_resolution_usd * 10, 100] | min }}%"></div>
-    </div>
-  </div>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-  <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-secondary">
-    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Avg Cost per Complaint</div>
-    <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.2f"|format(data.avg_cost_per_complaint_usd) }}</div>
-    <p class="mt-2 text-xs text-on-surface-variant">Average LLM spend per tracked complaint run.</p>
-  </div>
-  <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-primary-container">
-    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Avg Cost per Call</div>
-    <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.4f"|format(data.avg_cost_per_call_usd) }}</div>
-    <p class="mt-2 text-xs text-on-surface-variant">Useful for comparing model policy changes and prompt inflation.</p>
-  </div>
-  <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-primary">
-    <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Highest Cost Agent</div>
-    <div class="text-3xl font-headline font-extrabold text-on-surface">{{ data.top_agent.agent_name | replace('_', ' ') | title if data.top_agent else '—' }}</div>
-    <p class="mt-2 text-xs text-on-surface-variant">
-      {% if data.top_agent %}
-      ${{ "%.2f"|format(data.top_agent.total_cost_usd) }} · {{ data.top_agent.share_pct }}% of spend
-      {% else %}
-      No tracked agent cost yet
-      {% endif %}
-    </p>
-  </div>
-</div>
-
-<!-- Main grid -->
-<div class="grid grid-cols-12 gap-6">
-
-  <!-- Left column: Risk distribution + team workload -->
-  <div class="col-span-4 space-y-6">
-
-    <!-- Risk Distribution -->
-    <div class="bg-surface-container-lowest p-6 rounded-lg shadow-sm border-b-2 border-primary-container">
-      <div class="flex justify-between items-start mb-5">
-        <div>
-          <p class="text-sm font-bold text-on-surface">Risk Distribution</p>
-          <p class="text-[11px] text-on-surface-variant">Across all active cases</p>
-        </div>
-        <span class="material-symbols-outlined text-on-surface-variant">shield</span>
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="aurora-gradient rounded-3xl p-8 text-white shadow-xl flex items-center justify-between">
+      <div>
+        <p class="text-indigo-100 text-sm font-bold uppercase tracking-wider mb-2">Tracked Spend</p>
+        <h2 class="text-5xl font-extrabold font-headline">${{ "%.2f"|format(data.llm_spend_total_usd) }}</h2>
+        <p class="text-indigo-200 text-xs mt-4 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">monitoring</span>
+          {{ data.selected_range_label }} window · {{ data.llm_call_count }} atomic calls
+        </p>
       </div>
-      {% set risk_colors = {"critical": "bg-error", "high": "bg-error/60", "medium": "bg-secondary", "low": "bg-secondary-container"} %}
-      {% set total_risk = data.risk_counts.values() | sum if data.risk_counts else 1 %}
-      <div class="space-y-3">
-        {% for level in ['critical', 'high', 'medium', 'low'] %}
-        {% set count = data.risk_counts.get(level, 0) %}
-        {% set pct = (count / total_risk * 100) if total_risk > 0 else 0 %}
-        <div>
-          <div class="flex justify-between text-xs mb-1.5">
-            <span class="font-bold uppercase tracking-wider
-                         {% if level == 'critical' %}text-error
-                         {% elif level == 'high' %}text-error/70
-                         {% elif level == 'low' %}text-secondary
-                         {% else %}text-on-tertiary-container{% endif %}">{{ level }}</span>
-            <span class="font-mono text-on-surface-variant">{{ count }}</span>
-          </div>
-          <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-            <div class="{{ risk_colors.get(level, 'bg-secondary') }} h-full rounded-full transition-all" style="width: {{ pct | int }}%"></div>
-          </div>
-        </div>
-        {% endfor %}
+      <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
+        <span class="material-symbols-outlined text-4xl">savings</span>
       </div>
     </div>
-
-    <!-- Team Workload -->
-    <div class="bg-surface-container-lowest p-6 rounded-lg shadow-sm border-b-2 border-secondary">
-      <div class="flex justify-between items-start mb-5">
-        <div>
-          <p class="text-sm font-bold text-on-surface">Team Workload</p>
-          <p class="text-[11px] text-on-surface-variant">Cases per routing group</p>
-        </div>
-        <span class="material-symbols-outlined text-on-surface-variant">group</span>
+    <div class="rounded-3xl p-8 text-white shadow-xl flex items-center justify-between" style="background: linear-gradient(135deg, #006a62 0%, #004d46 100%);">
+      <div>
+        <p class="text-secondary-fixed text-sm font-bold uppercase tracking-wider mb-2">Complaint Throughput</p>
+        <h2 class="text-5xl font-extrabold font-headline">{{ data.total_complaints }}</h2>
+        <p class="text-secondary-fixed text-xs mt-4 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">task_alt</span>
+          {{ data.completed_run_count }} completed runs · {{ "%.1f"|format(data.avg_resolution_seconds / 60) if data.avg_resolution_seconds else "0" }} min average
+        </p>
       </div>
-      {% if data.team_counts %}
-      {% set max_team = data.team_counts.values() | max if data.team_counts else 1 %}
-      <div class="space-y-3">
-        {% for team, count in data.team_counts.items() %}
-        <div class="flex items-center gap-3">
-          <div class="w-28 text-xs text-on-surface-variant truncate shrink-0">{{ team | replace('_', ' ') | title }}</div>
-          <div class="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-            <div class="h-full bg-primary rounded-full" style="width: {{ (count / max_team * 100) | int }}%"></div>
-          </div>
-          <div class="w-8 text-right text-xs font-mono text-on-surface-variant shrink-0">{{ count }}</div>
-        </div>
-        {% endfor %}
+      <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
+        <span class="material-symbols-outlined text-4xl">speed</span>
       </div>
-      {% else %}
-      <div class="py-6 text-center text-on-surface-variant/50 text-sm">No routing data available</div>
-      {% endif %}
     </div>
   </div>
 
-  <!-- Right column: Category chart -->
-  <div class="col-span-8">
-    <div class="bg-surface-container-lowest p-6 rounded-lg shadow-sm mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div class="bg-surface-container-low p-6 rounded-xl shadow-sm xl:col-span-2 space-y-2">
+      <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Total LLM Spend ({{ data.selected_range_label }})</span>
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-headline font-black text-on-surface">${{ "%.2f"|format(data.llm_spend_total_usd) }}</span>
+        <span class="text-secondary text-sm font-bold">{{ data.llm_call_count }} atomic calls</span>
+      </div>
+      <p class="text-sm text-on-surface-variant">Tracked spend includes historical aggregate rows. Atomic call count excludes aggregate-only backfill rows.</p>
+      <div class="h-2.5 bg-surface-container-high rounded-full overflow-hidden">
+        <div class="h-full bg-secondary rounded-full" style="width: {{ [data.tracking_coverage_pct, 100] | min }}%"></div>
+      </div>
+      <p class="text-[11px] text-on-surface-variant">{{ data.tracking_coverage_pct }}% of complaints in this window have tracked LLM cost.</p>
+    </div>
+    <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-secondary">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Avg Cost per Complaint</div>
+      <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.2f"|format(data.avg_cost_per_complaint_usd) }}</div>
+      <p class="mt-2 text-xs text-on-surface-variant">Average tracked spend per complaint in the selected window.</p>
+    </div>
+    <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-primary-container">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Avg Cost per Atomic Call</div>
+      <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.4f"|format(data.avg_cost_per_call_usd) }}</div>
+      <p class="mt-2 text-xs text-on-surface-variant">Atomic-call economics only. Historical aggregate-only spend is excluded.</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+    <div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm">
       <div class="flex items-center justify-between mb-6">
         <div>
           <h2 class="text-sm font-bold text-on-surface">LLM Spend Trend</h2>
@@ -212,7 +87,7 @@
         <div class="text-xs font-bold text-secondary">{{ data.selected_range_label }}</div>
       </div>
       {% if data.spend_trend %}
-      <canvas id="spendTrendChart" height="140"></canvas>
+      <canvas id="spendTrendChart" height="150"></canvas>
       {% else %}
       <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/40">
         <span class="material-symbols-outlined text-4xl mb-3">query_stats</span>
@@ -220,177 +95,171 @@
       </div>
       {% endif %}
     </div>
-
-    <div class="bg-surface-container-lowest p-6 rounded-lg shadow-sm h-full">
+    <div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm" id="agent-analytics">
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h2 class="text-sm font-bold text-on-surface">Complaint Volume by Category</h2>
-          <p class="text-[11px] text-on-surface-variant">Distribution across complaint types</p>
+          <h2 class="text-sm font-bold text-on-surface">Highest Cost Agent</h2>
+          <p class="text-[11px] text-on-surface-variant">Largest share of atomic spend in this reporting window.</p>
         </div>
-        <button class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
-          <span class="material-symbols-outlined text-sm">filter_list</span> All Categories
-        </button>
       </div>
-      {% if data.category_counts %}
-      <canvas id="categoryChart" height="220"></canvas>
+      {% if data.top_agent %}
+      <div class="text-4xl font-headline font-extrabold text-on-surface">{{ data.top_agent.agent_name | replace('_', ' ') | title }}</div>
+      <div class="mt-3 text-sm text-on-surface-variant">${{ "%.2f"|format(data.top_agent.total_cost_usd) }} · {{ data.top_agent.share_pct }}% of atomic spend</div>
+      <div class="mt-4 h-2.5 bg-surface-container-high rounded-full overflow-hidden">
+        <div class="h-full bg-secondary rounded-full" style="width: {{ [data.top_agent.share_pct, 100] | min }}%"></div>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-4">
+        <div class="rounded-xl bg-surface-container-low p-4">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">Atomic Calls</div>
+          <div class="text-2xl font-headline font-bold text-on-surface">{{ data.top_agent.call_count }}</div>
+        </div>
+        <div class="rounded-xl bg-surface-container-low p-4">
+          <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">Atomic Spend</div>
+          <div class="text-2xl font-headline font-bold text-on-surface">${{ "%.2f"|format(data.atomic_llm_spend_total_usd) }}</div>
+        </div>
+      </div>
       {% else %}
-      <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/40">
-        <span class="material-symbols-outlined text-4xl mb-3">analytics</span>
-        <p class="text-sm">No category data available yet</p>
-      </div>
+      <div class="py-12 text-center text-on-surface-variant/50 text-sm">No tracked agent cost yet</div>
       {% endif %}
     </div>
   </div>
 
-</div>
-
-<section class="mt-8">
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h3 class="font-headline font-bold text-xl text-on-surface">Agent Cost Analytics</h3>
-      <p class="text-sm text-on-surface-variant">Which specialist agents are driving spend, token volume, and call frequency.</p>
-    </div>
-  </div>
-  <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
-    <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h4 class="text-sm font-bold text-on-surface">Agent Spend Share</h4>
-          <p class="text-[11px] text-on-surface-variant">Spend concentration by specialist.</p>
+  <div class="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-6">
+    <div class="space-y-6">
+      <div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm">
+        <div class="flex justify-between items-start mb-5">
+          <div>
+            <p class="text-sm font-bold text-on-surface">Risk Distribution</p>
+            <p class="text-[11px] text-on-surface-variant">Across complaints in the selected window.</p>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant">shield</span>
         </div>
-      </div>
-      {% if data.agent_costs %}
-      <canvas id="agentCostChart" height="220"></canvas>
-      {% else %}
-      <div class="py-12 text-center text-on-surface-variant/50 text-sm">No agent spend data available yet</div>
-      {% endif %}
-    </div>
-    <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm">
-      <table class="w-full text-left">
-        <thead>
-          <tr class="bg-surface-container text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">
-            <th class="px-6 py-4">Agent</th>
-            <th class="px-6 py-4">Total Spend</th>
-            <th class="px-6 py-4">Calls</th>
-            <th class="px-6 py-4">Avg / Call</th>
-            <th class="px-6 py-4">Avg Tokens / Call</th>
-            <th class="px-6 py-4">Spend Share</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-outline-variant/10 text-sm">
-          {% if data.agent_costs %}
-          {% for agent in data.agent_costs %}
-          <tr class="hover:bg-surface-container-low transition-colors">
-            <td class="px-6 py-4 font-semibold text-on-surface">{{ agent.agent_name | replace('_', ' ') | title }}</td>
-            <td class="px-6 py-4 font-mono text-on-surface">${{ "%.2f"|format(agent.total_cost_usd) }}</td>
-            <td class="px-6 py-4 font-mono text-on-surface-variant">{{ agent.call_count }}</td>
-            <td class="px-6 py-4 font-mono text-on-surface-variant">${{ "%.4f"|format(agent.avg_cost_per_call_usd) }}</td>
-            <td class="px-6 py-4 font-mono text-on-surface-variant">{{ agent.avg_tokens_per_call }}</td>
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-3">
-                <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden">
-                  <div class="h-full bg-secondary rounded-full" style="width: {{ [agent.share_pct, 100] | min }}%"></div>
-                </div>
-                <span class="text-xs font-mono text-on-surface-variant w-10 text-right">{{ agent.share_pct }}%</span>
-              </div>
-            </td>
-          </tr>
+        {% set risk_colors = {"critical": "bg-error", "high": "bg-error/60", "medium": "bg-secondary", "low": "bg-secondary-container"} %}
+        {% set total_risk = data.risk_counts.values() | sum if data.risk_counts else 1 %}
+        <div class="space-y-3">
+          {% for level in ['critical', 'high', 'medium', 'low'] %}
+          {% set count = data.risk_counts.get(level, 0) %}
+          {% set pct = (count / total_risk * 100) if total_risk > 0 else 0 %}
+          <div>
+            <div class="flex justify-between text-xs mb-1.5">
+              <span class="font-bold uppercase tracking-wider
+                           {% if level == 'critical' %}text-error
+                           {% elif level == 'high' %}text-error/70
+                           {% elif level == 'low' %}text-secondary
+                           {% else %}text-on-tertiary-container{% endif %}">{{ level }}</span>
+              <span class="font-mono text-on-surface-variant">{{ count }}</span>
+            </div>
+            <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+              <div class="{{ risk_colors.get(level, 'bg-secondary') }} h-full rounded-full transition-all" style="width: {{ pct | int }}%"></div>
+            </div>
+          </div>
           {% endfor %}
-          {% else %}
-          <tr>
-            <td colspan="6" class="px-6 py-12 text-center text-on-surface-variant/50 text-sm">
-              No tracked agent analytics available yet
-            </td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
+        </div>
+      </div>
 
-<!-- Complaint Evaluation Reports -->
-<section class="mt-8">
-  <div class="flex items-center justify-between mb-5">
-    <h3 class="font-headline font-bold text-xl text-on-surface">Complaint Evaluation Reports</h3>
-    <div class="flex gap-4">
-      <div class="flex items-center gap-2 text-sm text-on-surface-variant">
-        <span class="w-2.5 h-2.5 rounded-full bg-secondary"></span> Pass
+      <div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm">
+        <div class="flex justify-between items-start mb-5">
+          <div>
+            <p class="text-sm font-bold text-on-surface">Model Spend Mix</p>
+            <p class="text-[11px] text-on-surface-variant">Spend and volume by model for atomic calls only.</p>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant">tune</span>
+        </div>
+        <div class="space-y-3">
+          {% for model in data.model_costs %}
+          <div class="rounded-xl bg-surface-container-low p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold text-on-surface">{{ model.model_name }}</div>
+                <div class="text-[10px] text-on-surface-variant mt-1">{{ model.call_count }} calls · {{ "{:,}".format(model.total_tokens) }} tokens</div>
+              </div>
+              <div class="font-mono font-bold text-on-surface">${{ "%.2f"|format(model.total_cost_usd) }}</div>
+            </div>
+          </div>
+          {% else %}
+          <div class="rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">No model cost data available yet.</div>
+          {% endfor %}
+        </div>
       </div>
-      <div class="flex items-center gap-2 text-sm text-on-surface-variant">
-        <span class="w-2.5 h-2.5 rounded-full bg-primary"></span> Needs Review
+    </div>
+
+    <div class="space-y-6">
+      <div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">
+        <div class="px-6 py-5 border-b border-outline-variant/10">
+          <h2 class="font-headline font-bold text-xl text-on-surface">Agent Cost Analytics</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Which specialist agents are driving spend, token volume, and call frequency.</p>
+        </div>
+        <div class="p-6">
+          {% if data.agent_costs %}
+          <canvas id="agentCostChart" height="220"></canvas>
+          {% else %}
+          <div class="py-12 text-center text-on-surface-variant/50 text-sm">No tracked agent spend data available yet.</div>
+          {% endif %}
+        </div>
+        <table class="w-full text-left">
+          <thead>
+            <tr class="bg-surface-container text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">
+              <th class="px-6 py-4">Agent</th>
+              <th class="px-6 py-4">Spend</th>
+              <th class="px-6 py-4">Calls</th>
+              <th class="px-6 py-4">Avg / Call</th>
+              <th class="px-6 py-4">Share</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/10 text-sm">
+            {% for agent in data.agent_costs %}
+            <tr class="hover:bg-surface-container-low transition-colors">
+              <td class="px-6 py-4 font-semibold text-on-surface">{{ agent.agent_name | replace('_', ' ') | title }}</td>
+              <td class="px-6 py-4 font-mono text-on-surface">${{ "%.2f"|format(agent.total_cost_usd) }}</td>
+              <td class="px-6 py-4 font-mono text-on-surface-variant">{{ agent.call_count }}</td>
+              <td class="px-6 py-4 font-mono text-on-surface-variant">${{ "%.4f"|format(agent.avg_cost_per_call_usd) }}</td>
+              <td class="px-6 py-4 font-mono text-on-surface-variant">{{ agent.share_pct }}%</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="px-6 py-10 text-center text-on-surface-variant/50 text-sm">No tracked agent analytics available yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-      <div class="flex items-center gap-2 text-sm text-on-surface-variant">
-        <span class="w-2.5 h-2.5 rounded-full bg-error"></span> Fail
+
+      <div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm" id="case-costs">
+        <div class="px-6 py-5 border-b border-outline-variant/10">
+          <h2 class="font-headline font-bold text-xl text-on-surface">Highest Cost Complaints</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Recent tracked complaints with the largest recorded spend.</p>
+        </div>
+        <table class="w-full text-left">
+          <thead>
+            <tr class="bg-surface-container text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">
+              <th class="px-6 py-4">Complaint ID</th>
+              <th class="px-6 py-4">Status</th>
+              <th class="px-6 py-4">Cost</th>
+              <th class="px-6 py-4">Tokens</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/10 text-sm">
+            {% for case in data.top_cost_cases %}
+            <tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="window.location.href='/complaints/{{ case.public_case_id or case.id }}'">
+              <td class="px-6 py-4">
+                <div class="font-bold font-mono text-primary text-xs">#{{ case.public_case_id or case.id[:12] }}</div>
+                <div class="text-[10px] text-on-surface-variant mt-1">{{ case.subject[:72] }}</div>
+              </td>
+              <td class="px-6 py-4 text-xs text-on-surface-variant">{{ case.status | replace('_', ' ') | title }}</td>
+              <td class="px-6 py-4 font-mono text-on-surface">${{ "%.2f"|format(case.cost_estimate_usd or 0.0) }}</td>
+              <td class="px-6 py-4 font-mono text-on-surface-variant">{% if case.token_total %}{{ "{:,}".format(case.token_total) }}{% else %}—{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="4" class="px-6 py-10 text-center text-on-surface-variant/50 text-sm">No tracked complaint costs available yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-  <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm">
-    <table class="w-full text-left">
-      <thead>
-        <tr class="bg-surface-container text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">
-          <th class="px-6 py-4">Complaint ID</th>
-          <th class="px-6 py-4">Case Status</th>
-          <th class="px-6 py-4">System Eval</th>
-          <th class="px-6 py-4">LLM Judge</th>
-          <th class="px-6 py-4">Overall</th>
-          <th class="px-6 py-4 text-right">Action</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-outline-variant/10 text-sm">
-        {% if data.production_evaluation.recent_case_reports %}
-        {% for case in data.production_evaluation.recent_case_reports %}
-        <tr class="hover:bg-surface-container-low transition-colors cursor-pointer"
-            onclick="window.location.href='/analytics/cases/{{ case.public_case_id or case.id }}'">
-          <td class="px-6 py-4">
-            <a href="/analytics/cases/{{ case.public_case_id or case.id }}"
-               class="font-bold font-mono text-primary text-xs hover:underline"
-               onclick="event.stopPropagation()">#{{ case.public_case_id or case.id[:12] }}</a>
-            <div class="text-[10px] text-on-surface-variant mt-0.5">{{ case.subject[:60] }}</div>
-          </td>
-          <td class="px-6 py-4">
-            <span class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full
-                           {% if case.status in ('classified','risk_assessed','resolution_proposed') %}bg-secondary
-                           {% elif case.status == 'routed' %}bg-primary-container
-                           {% else %}bg-surface-container-high{% endif %}"></span>
-              <span class="text-xs text-on-surface-variant">{{ case.status | replace('_', ' ') | title }}</span>
-            </span>
-          </td>
-          <td class="px-6 py-4 text-xs">
-            <span class="{% if case.system_verdict == 'pass' %}text-secondary{% elif case.system_verdict == 'fail' %}text-error{% else %}text-primary{% endif %} font-semibold uppercase">{{ case.system_verdict | replace('_', ' ') }}</span>
-          </td>
-          <td class="px-6 py-4 text-xs">
-            <span class="{% if case.judge_verdict == 'pass' %}text-secondary{% elif case.judge_verdict == 'fail' %}text-error{% else %}text-primary{% endif %} font-semibold uppercase">{{ case.judge_verdict | replace('_', ' ') }}</span>
-          </td>
-          <td class="px-6 py-4 text-xs">
-            <span class="{% if case.overall_status == 'pass' %}text-secondary{% elif case.overall_status == 'fail' %}text-error{% else %}text-primary{% endif %} font-semibold uppercase">{{ case.overall_status | replace('_', ' ') }}</span>
-          </td>
-          <td class="px-6 py-4 text-right">
-            <a href="/analytics/cases/{{ case.public_case_id or case.id }}"
-               class="p-2 inline-flex hover:bg-surface-container-high rounded-lg text-primary transition-colors"
-               onclick="event.stopPropagation()">
-              <span class="material-symbols-outlined text-lg">visibility</span>
-            </a>
-          </td>
-        </tr>
-        {% endfor %}
-        {% else %}
-        <tr>
-          <td colspan="6" class="px-6 py-12 text-center text-on-surface-variant/50 text-sm">
-            No complaint evaluations available yet
-          </td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
-    <div class="p-4 bg-surface-container-low flex justify-center border-t border-outline-variant/10">
-      <a href="/evaluation" class="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
-        VIEW BENCHMARK EVALUATION <span class="material-symbols-outlined text-xs ml-1">open_in_new</span>
-      </a>
-    </div>
-  </div>
-</section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -426,40 +295,6 @@
             font: { family: 'Inter', size: 11 },
             callback: (value) => '$' + value
           },
-        }
-      }
-    }
-  });
-{% endif %}
-
-{% if data.category_counts %}
-  const ctx = document.getElementById('categoryChart').getContext('2d');
-  const isDark = document.documentElement.classList.contains('dark');
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: {{ data.category_counts.keys() | list | tojson }},
-      datasets: [{
-        data: {{ data.category_counts.values() | list | tojson }},
-        backgroundColor: 'rgba(129, 243, 229, 0.3)',
-        borderColor: 'rgba(0, 111, 102, 0.7)',
-        borderWidth: 1.5,
-        borderRadius: 4,
-        hoverBackgroundColor: 'rgba(129, 243, 229, 0.5)',
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: {
-          grid: { color: 'rgba(198, 197, 212, 0.3)' },
-          ticks: { color: '#767683', font: { family: 'Inter', size: 11 } },
-        },
-        y: {
-          grid: { display: false },
-          ticks: { color: '#454652', font: { family: 'Inter', size: 11 } },
         }
       }
     }

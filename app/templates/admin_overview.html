@@ -1,201 +1,207 @@
 {% extends "base.html" %}
-{% block title %}AI Operational Intelligence{% endblock %}
+{% block title %}Admin Overview{% endblock %}
 
 {% block head %}
 <style>
-  .aurora-bg-tile { background: linear-gradient(135deg, #000666 0%, #1a237e 100%); }
+  .overview-hero {
+    background: linear-gradient(135deg, #000666 0%, #10227d 100%);
+  }
+  .overview-hero-secondary {
+    background: linear-gradient(135deg, #006a62 0%, #004d46 100%);
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="space-y-10 -mt-2">
-  <!-- Title + range -->
-  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+<div class="space-y-8 -mt-2">
+  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
     <div>
-      <h1 class="font-headline font-extrabold text-3xl text-primary tracking-tight">AI Operational Intelligence</h1>
-      <p class="text-on-surface-variant mt-1 text-sm">Real-time resource allocation and agent efficiency monitoring.</p>
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-1">Overview · Admin Control Tower</p>
+      <h1 class="font-headline font-extrabold text-3xl text-primary tracking-tight">Operational Overview</h1>
+      <p class="text-on-surface-variant mt-1 text-sm">Company-level visibility into intake volume, operational risk, and LLM cost performance.</p>
     </div>
     <div class="flex gap-1 bg-surface-container-low p-1 rounded-lg shrink-0">
-      <span class="px-4 py-1.5 rounded-md bg-surface-container-lowest shadow-sm text-sm font-semibold text-on-surface">24 Hours</span>
-      <a href="/analytics" class="px-4 py-1.5 rounded-md text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors">7 Days</a>
-      <a href="/analytics" class="px-4 py-1.5 rounded-md text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors">Monthly</a>
+      {% for option in range_options %}
+      <a href="/app?range={{ option.key }}"
+         class="px-4 py-1.5 rounded-md text-sm transition-colors {% if option.key == selected_range_key %}bg-surface-container-lowest shadow-sm font-semibold text-on-surface{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}">
+        {{ option.label }}
+      </a>
+      {% endfor %}
     </div>
   </div>
 
-  <!-- Hero KPIs -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div class="aurora-bg-tile p-8 rounded-lg text-on-primary shadow-xl flex items-center justify-between">
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <a href="/queue" class="overview-hero rounded-3xl p-8 text-white shadow-xl flex items-center justify-between hover:opacity-95 transition-opacity">
       <div>
-        <p class="text-primary-fixed text-sm font-bold uppercase tracking-wider mb-2">Active complaints</p>
+        <p class="text-indigo-100 text-sm font-bold uppercase tracking-wider mb-2">Active Queue</p>
         <h2 class="text-5xl font-extrabold font-headline">{{ "{:,}".format(active_count|int) }}</h2>
-        <p class="text-primary-fixed/90 text-xs mt-4 flex items-center gap-1">
-          <span class="material-symbols-outlined text-sm">trending_up</span>
-          Open pipeline (not resolved)
+        <p class="text-indigo-200 text-xs mt-4 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">pending_actions</span>
+          {{ "{:,}".format(critical_count|int) }} critical escalations require attention
         </p>
       </div>
       <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
-        <span class="material-symbols-outlined text-4xl">pending_actions</span>
+        <span class="material-symbols-outlined text-4xl">list_alt</span>
       </div>
-    </div>
-    <div class="bg-secondary p-8 rounded-lg text-on-secondary shadow-xl flex items-center justify-between">
+    </a>
+    <a href="/operations?range={{ selected_range_key }}" class="overview-hero-secondary rounded-3xl p-8 text-white shadow-xl flex items-center justify-between hover:opacity-95 transition-opacity">
       <div>
-        <p class="text-secondary-fixed text-sm font-bold uppercase tracking-wider mb-2">Resolved complaints</p>
-        <h2 class="text-5xl font-extrabold font-headline">{{ "{:,}".format(resolved_count|int) }}</h2>
+        <p class="text-secondary-fixed text-sm font-bold uppercase tracking-wider mb-2">Tracked LLM Spend</p>
+        <h2 class="text-5xl font-extrabold font-headline">${{ "%.2f"|format(tracked_spend_usd) }}</h2>
         <p class="text-secondary-fixed text-xs mt-4 flex items-center gap-1">
-          <span class="material-symbols-outlined text-sm">check_circle</span>
-          {{ resolution_rate }}% resolution rate
+          <span class="material-symbols-outlined text-sm">savings</span>
+          {{ selected_range_label }} window · {{ atomic_call_count }} atomic calls
         </p>
       </div>
       <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
-        <span class="material-symbols-outlined text-4xl">task_alt</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Financial snapshot -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-    <a href="/costs" class="block bg-surface-container-lowest p-6 rounded-lg shadow-sm border-b-2 border-primary-container hover:opacity-95 transition-opacity">
-      <div class="flex justify-between items-start mb-4">
-        <p class="text-sm font-medium text-on-surface-variant">Total LLM cost (monthly)</p>
-        <span class="material-symbols-outlined text-on-surface-variant/60">payments</span>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <h3 class="text-3xl font-bold font-headline text-on-surface">View report</h3>
-      </div>
-      <p class="text-xs text-on-surface-variant mt-3">Open Costs for token usage and spend.</p>
-      <div class="mt-4 h-12 flex items-end gap-1 opacity-80">
-        <div class="w-full bg-surface-container-high rounded-t h-8"></div>
-        <div class="w-full bg-surface-container-high rounded-t h-10"></div>
-        <div class="w-full bg-primary-fixed/40 rounded-t h-12"></div>
-        <div class="w-full bg-primary/30 rounded-t h-9"></div>
-        <div class="w-full bg-primary-container/50 rounded-t h-11"></div>
-        <div class="w-full bg-primary rounded-t h-12"></div>
+        <span class="material-symbols-outlined text-4xl">monitoring</span>
       </div>
     </a>
-    <a href="/costs" class="block bg-surface-container-lowest p-6 rounded-lg shadow-sm border-b-2 border-secondary hover:opacity-95 transition-opacity">
-      <div class="flex justify-between items-start mb-4">
-        <p class="text-sm font-medium text-on-surface-variant">Avg. cost per resolution</p>
-        <span class="material-symbols-outlined text-on-surface-variant/60">calculate</span>
-      </div>
-        <h3 class="text-3xl font-bold font-headline text-on-surface">Costs</h3>
-      <p class="text-xs text-secondary mt-3 flex items-center gap-0.5">
-        <span class="material-symbols-outlined text-xs">arrow_forward</span> Efficiency metrics
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <a href="/operations?range={{ selected_range_key }}" class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-primary-container hover:opacity-95 transition-opacity">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Avg Cost per Complaint</div>
+      <div class="text-3xl font-headline font-extrabold text-on-surface">${{ "%.2f"|format(avg_cost_per_complaint_usd) }}</div>
+      <p class="mt-2 text-xs text-on-surface-variant">Average tracked spend per complaint in the selected window.</p>
+    </a>
+    <a href="/operations?range={{ selected_range_key }}" class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-secondary hover:opacity-95 transition-opacity">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Tracked Tokens</div>
+      <div class="text-3xl font-headline font-extrabold text-on-surface">{{ "{:,}".format(tracked_tokens) }}</div>
+      <p class="mt-2 text-xs text-on-surface-variant">Token volume consumed by all tracked runs in this window.</p>
+    </a>
+    <a href="/operations?range={{ selected_range_key }}" class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-primary hover:opacity-95 transition-opacity">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Tracking Coverage</div>
+      <div class="text-3xl font-headline font-extrabold text-on-surface">{{ tracking_coverage_pct }}%</div>
+      <p class="mt-2 text-xs text-on-surface-variant">{{ tracked_case_count }} of {{ window_complaint_count }} complaints in this window have tracked cost.</p>
+    </a>
+    <a href="/operations?range={{ selected_range_key }}#agent-analytics" class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-2 border-on-tertiary-container hover:opacity-95 transition-opacity">
+      <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">Highest Cost Agent</div>
+      <div class="text-3xl font-headline font-extrabold text-on-surface">{{ top_agent.agent_name | replace('_', ' ') | title if top_agent else '—' }}</div>
+      <p class="mt-2 text-xs text-on-surface-variant">
+        {% if top_agent %}
+        ${{ "%.2f"|format(top_agent.total_cost_usd) }} · {{ top_agent.call_count }} calls
+        {% else %}
+        No atomic agent cost captured in this window.
+        {% endif %}
       </p>
-      <div class="mt-4 h-12 flex items-end gap-1 opacity-80">
-        <div class="w-full bg-surface-container-high rounded-t h-12"></div>
-        <div class="w-full bg-surface-container-high rounded-t h-10"></div>
-        <div class="w-full bg-secondary-container/60 rounded-t h-11"></div>
-        <div class="w-full bg-secondary-fixed/70 rounded-t h-9"></div>
-        <div class="w-full bg-secondary-fixed-dim/80 rounded-t h-8"></div>
-        <div class="w-full bg-secondary rounded-t h-7"></div>
-      </div>
-    </a>
-    <a href="/analytics" class="block bg-surface-container-lowest p-6 rounded-lg shadow-sm border-b-2 border-on-tertiary-container hover:opacity-95 transition-opacity">
-      <div class="flex justify-between items-start mb-4">
-        <p class="text-sm font-medium text-on-surface-variant">Intelligence load</p>
-        <span class="material-symbols-outlined text-on-surface-variant/60">memory</span>
-      </div>
-      <h3 class="text-3xl font-bold font-headline text-on-surface">{{ "{:,}".format(total|int) }}</h3>
-      <p class="text-xs text-on-surface-variant mt-3">Total cases in system</p>
-      <div class="mt-4 h-12 flex items-end gap-1 opacity-80">
-        <div class="w-full bg-tertiary-fixed rounded-t h-10"></div>
-        <div class="w-full bg-tertiary-fixed-dim rounded-t h-11"></div>
-        <div class="w-full bg-tertiary-container/40 rounded-t h-10"></div>
-        <div class="w-full bg-on-tertiary-container/30 rounded-t h-11"></div>
-        <div class="w-full bg-tertiary-fixed rounded-t h-10"></div>
-        <div class="w-full bg-tertiary rounded-t h-11"></div>
-      </div>
     </a>
   </div>
 
-  <!-- Recent queue -->
-  <section class="pb-4">
-    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
-      <h3 class="font-headline font-bold text-xl text-on-surface">Active Intelligence Queue</h3>
-      <div class="flex gap-4 text-sm text-on-surface-variant">
-        <span class="flex items-center gap-2">
-          <span class="w-3 h-3 rounded-full bg-secondary"></span> Processing
-        </span>
-        <span class="flex items-center gap-2">
-          <span class="w-3 h-3 rounded-full bg-primary-container"></span> Human review
-        </span>
+  <div class="grid grid-cols-1 xl:grid-cols-[1.35fr_0.95fr] gap-6">
+    <section class="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-outline-variant/10 flex items-center justify-between">
+        <div>
+          <h2 class="font-headline font-bold text-xl text-on-surface">Operational Queue Snapshot</h2>
+          <p class="text-sm text-on-surface-variant">Latest complaints with cost, risk, and routing context.</p>
+        </div>
+        <a href="/queue" class="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+          Open full queue <span class="material-symbols-outlined text-sm">arrow_forward</span>
+        </a>
       </div>
-    </div>
-
-    <div class="overflow-hidden bg-surface-container-lowest rounded-lg shadow-sm ring-1 ring-outline-variant/10">
-      <table class="w-full text-left border-collapse">
+      <table class="w-full text-left">
         <thead>
           <tr class="bg-surface-container-low text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">
             <th class="px-6 py-4">Complaint ID</th>
-            <th class="px-6 py-4">Status</th>
-            <th class="px-6 py-4">Stage</th>
-            <th class="px-6 py-4">AI confidence</th>
-            <th class="px-6 py-4 text-right">Action</th>
+            <th class="px-6 py-4">Subject</th>
+            <th class="px-6 py-4">Risk</th>
+            <th class="px-6 py-4">Route</th>
+            <th class="px-6 py-4">Cost</th>
+            <th class="px-6 py-4">Tokens</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-outline-variant/10 text-sm">
           {% for case in recent_queue %}
-          {% set human_review = case.status in ['routed', 'reviewed', 'compliance_checked'] %}
-          <tr class="hover:bg-surface-container-low/80 transition-colors">
+          <tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="window.location.href='/complaints/{{ case.public_case_id or case.id }}'">
+            <td class="px-6 py-4 font-mono font-bold text-primary text-xs">#{{ case.public_case_id or case.id[:12] }}</td>
             <td class="px-6 py-4">
-              <div class="font-bold text-on-surface">#{{ case.public_case_id or case.id[:12] }}</div>
-              {% if case.product %}
-              <div class="text-[10px] text-on-surface-variant">{{ case.product }}</div>
+              <div class="font-semibold text-on-surface leading-tight">{{ case.subject }}</div>
+              {% if case.issue_type %}
+              <div class="text-[10px] text-on-surface-variant mt-1">{{ case.issue_type | replace('_', ' ') | title }}</div>
               {% endif %}
             </td>
             <td class="px-6 py-4">
-              <span class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full {% if human_review %}bg-primary-container{% else %}bg-secondary{% endif %}"></span>
-                <span class="text-on-surface">{{ case.status | replace('_', ' ') | title }}</span>
+              {% if case.risk_level %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase
+                {% if case.risk_level == 'critical' %}bg-error-container text-on-error-container
+                {% elif case.risk_level == 'high' %}bg-error-container/60 text-error
+                {% elif case.risk_level == 'medium' %}bg-secondary-container text-on-secondary-container
+                {% else %}bg-surface-container-high text-on-surface-variant{% endif %}">
+                {{ case.risk_level }}
               </span>
-            </td>
-            <td class="px-6 py-4 text-on-surface-variant">{{ case.status | replace('_', ' ') | title }}</td>
-            <td class="px-6 py-4">
-              {% if case.confidence is not none %}
-              <div class="w-full max-w-[140px] space-y-1">
-                <div class="flex justify-between text-[10px] font-bold text-on-surface-variant">
-                  <span>{% if case.risk_level %}{{ case.risk_level | upper }}{% else %}—{% endif %}</span>
-                  <span>{{ (case.confidence * 100) | int }}%</span>
-                </div>
-                <div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div class="h-full rounded-full {% if case.confidence >= 0.8 %}bg-secondary{% elif case.confidence >= 0.5 %}bg-primary{% else %}bg-error{% endif %}"
-                       style="width: {{ (case.confidence * 100) | int }}%"></div>
-                </div>
-              </div>
               {% else %}
               <span class="text-on-surface-variant/50">—</span>
               {% endif %}
             </td>
-            <td class="px-6 py-4 text-right">
-              <a href="/complaints/{{ case.id }}" class="inline-flex p-2 hover:bg-primary/5 rounded-lg text-primary transition-colors" title="Open case">
-                <span class="material-symbols-outlined">visibility</span>
-              </a>
-            </td>
+            <td class="px-6 py-4 text-on-surface-variant">{{ case.routed_to | replace('_', ' ') | title if case.routed_to else '—' }}</td>
+            <td class="px-6 py-4 font-mono text-on-surface">${{ "%.2f"|format(case.cost_estimate_usd or 0.0) }}</td>
+            <td class="px-6 py-4 font-mono text-on-surface-variant">{% if case.token_total %}{{ "{:,}".format(case.token_total) }}{% else %}—{% endif %}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="5" class="px-6 py-12 text-center text-on-surface-variant">No cases yet. Ingest complaints to populate the queue.</td>
+            <td colspan="6" class="px-6 py-12 text-center text-on-surface-variant/50 text-sm">No complaints available yet.</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-      <div class="p-4 bg-surface-container-low flex justify-center border-t border-outline-variant/10">
-        <a href="/queue" class="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
-          Full complaint queue <span class="material-symbols-outlined text-sm">chevron_right</span>
-        </a>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <div class="flex flex-wrap gap-3 items-center justify-between pt-2 border-t border-outline-variant/15">
-    <p class="text-xs text-on-surface-variant">
-      <span class="font-semibold text-error">{{ critical_count }}</span> critical risk records system-wide
-    </p>
-    <a href="/complaints/new"
-       class="aurora-gradient text-on-primary px-5 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all shadow-md">
-      <span class="material-symbols-outlined text-sm">add</span>
-      New complaint
-    </a>
+    <div class="space-y-6">
+      <section class="bg-surface-container-lowest rounded-2xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-headline font-bold text-xl text-on-surface">Top Cost Drivers</h2>
+            <p class="text-sm text-on-surface-variant">Complaint-level spend leaders across the system.</p>
+          </div>
+          <a href="/operations?range=all#case-costs" class="text-xs font-bold text-primary hover:underline">Open operations</a>
+        </div>
+        <div class="space-y-3">
+          {% for case in highest_cost_cases %}
+          <a href="/complaints/{{ case.public_case_id or case.id }}" class="block rounded-xl bg-surface-container-low p-4 hover:bg-surface-container-high transition-colors">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="font-mono text-xs font-bold text-primary">#{{ case.public_case_id or case.id[:12] }}</div>
+                <div class="text-sm font-semibold text-on-surface mt-1">{{ case.subject }}</div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="font-mono font-bold text-on-surface">${{ "%.2f"|format(case.cost_estimate_usd or 0.0) }}</div>
+                <div class="text-[10px] text-on-surface-variant mt-1">{% if case.token_total %}{{ "{:,}".format(case.token_total) }} tok{% else %}—{% endif %}</div>
+              </div>
+            </div>
+          </a>
+          {% else %}
+          <div class="rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">No tracked cost leaders yet.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="bg-surface-container-lowest rounded-2xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-headline font-bold text-xl text-on-surface">System Health</h2>
+            <p class="text-sm text-on-surface-variant">Portfolio level intake and closure posture.</p>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-on-surface-variant">Total complaints</span>
+            <span class="font-mono font-semibold text-on-surface">{{ "{:,}".format(total) }}</span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-on-surface-variant">Resolved complaints</span>
+            <span class="font-mono font-semibold text-on-surface">{{ "{:,}".format(resolved_count) }}</span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-on-surface-variant">Resolution rate</span>
+            <span class="font-mono font-semibold text-on-surface">{{ resolution_rate }}%</span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-on-surface-variant">{{ selected_range_label }} completed runs</span>
+            <span class="font-mono font-semibold text-on-surface">{{ "{:,}".format(completed_runs) }}</span>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 {% endblock %}

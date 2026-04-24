@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.models import ComplaintCase, LLMCallCost, WorkflowRun, WorkflowStep
@@ -23,6 +23,18 @@ from app.observability.versions import (
 logger = logging.getLogger(__name__)
 
 
+def _atomic_call_count_expr():
+    return func.coalesce(
+        func.sum(
+            case(
+                (LLMCallCost.status == "backfilled_aggregate", 0),
+                else_=1,
+            )
+        ),
+        0,
+    )
+
+
 def _rollup_costs_for_run(
     session,
     run_id: str,
@@ -30,7 +42,7 @@ def _rollup_costs_for_run(
     sequence_number: int | None = None,
 ) -> dict[str, float | int]:
     query = session.query(
-        func.count(LLMCallCost.id),
+        _atomic_call_count_expr(),
         func.coalesce(func.sum(LLMCallCost.prompt_tokens), 0),
         func.coalesce(func.sum(LLMCallCost.completion_tokens), 0),
         func.coalesce(func.sum(LLMCallCost.total_tokens), 0),

@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 
 from langchain_openai import ChatOpenAI
+from app.observability.context import get_active_llm_callbacks
 
 
 _PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
@@ -63,6 +64,9 @@ def create_llm(
         "model": resolved_model,
         "temperature": temperature,
     }
+    active_callbacks = get_active_llm_callbacks()
+    if active_callbacks:
+        kwargs["callbacks"] = active_callbacks
 
     if provider == "deepseek":
         kwargs["api_key"] = os.getenv(cfg["api_key_env"], "")
