@@ -24,6 +24,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -267,6 +268,302 @@ class KnowledgeEntry(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     collection = relationship("KnowledgeCollection", back_populates="entries")
+
+
+class KBSourceDocument(Base):
+    """Normalized external or internal source document for the knowledge base."""
+
+    __tablename__ = "kb_source_documents"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    source_family_id = Column(String(64), nullable=False, index=True)
+    source_tier = Column(Integer, nullable=False, default=1, index=True)
+    source_group = Column(String(64), nullable=True, index=True)
+    authority_type = Column(String(64), nullable=True)
+    source_url = Column(Text, nullable=True)
+    title = Column(String(255), nullable=False, index=True)
+    regulator = Column(String(120), nullable=True, index=True)
+    document_type = Column(String(64), nullable=False, index=True)
+    publication_date = Column(String(32), nullable=True, index=True)
+    effective_date = Column(String(32), nullable=True, index=True)
+    version_label = Column(String(64), nullable=True, index=True)
+    jurisdiction = Column(String(32), nullable=False, default="US")
+    product_scope_json = Column(Text, nullable=True)
+    law_scope_json = Column(Text, nullable=True)
+    checksum = Column(String(128), nullable=True, index=True)
+    retrieval_timestamp = Column(DateTime, nullable=True, index=True)
+    raw_storage_uri = Column(Text, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    ingestion_status = Column(String(32), nullable=False, default="seeded", index=True)
+    validation_status = Column(String(32), nullable=False, default="seeded", index=True)
+    supersedes_document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    supersedes_document = relationship("KBSourceDocument", remote_side=[id])
+    sections = relationship("KBDocumentSection", back_populates="document")
+    citations = relationship("KBCitation", back_populates="document")
+    obligations = relationship("KBObligation", back_populates="document")
+    controls = relationship("KBControl", back_populates="document")
+    failure_modes = relationship("KBFailureMode", back_populates="document")
+    precedent_clusters = relationship("KBPrecedentCluster", back_populates="document")
+
+
+class KBDocumentSection(Base):
+    """Sectionized normalized text derived from a source document."""
+
+    __tablename__ = "kb_document_sections"
+    __table_args__ = (
+        UniqueConstraint("document_id", "section_key", name="uq_kb_document_section_key"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=False, index=True)
+    parent_section_id = Column(String(32), ForeignKey("kb_document_sections.id"), nullable=True, index=True)
+    section_key = Column(String(255), nullable=False)
+    section_title = Column(String(255), nullable=False)
+    section_path_json = Column(Text, nullable=True)
+    citation_anchor = Column(String(255), nullable=True, index=True)
+    section_text = Column(Text, nullable=False)
+    effective_from = Column(String(32), nullable=True, index=True)
+    effective_to = Column(String(32), nullable=True, index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    document = relationship("KBSourceDocument", back_populates="sections")
+    parent_section = relationship("KBDocumentSection", remote_side=[id])
+    citations = relationship("KBCitation", back_populates="section")
+    obligations = relationship("KBObligation", back_populates="section")
+
+
+class KBCitation(Base):
+    """Reusable citation record pointing to a document and optional section."""
+
+    __tablename__ = "kb_citations"
+    __table_args__ = (
+        Index("ix_kb_citations_target", "target_table", "target_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=False, index=True)
+    section_id = Column(String(32), ForeignKey("kb_document_sections.id"), nullable=True, index=True)
+    target_table = Column(String(64), nullable=False)
+    target_id = Column(String(32), nullable=False)
+    citation_anchor = Column(String(255), nullable=True)
+    quote_text = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    document = relationship("KBSourceDocument", back_populates="citations")
+    section = relationship("KBDocumentSection", back_populates="citations")
+
+
+class KBObligation(Base):
+    """Canonical compliance obligation extracted from a regulation or policy source."""
+
+    __tablename__ = "kb_obligations"
+    __table_args__ = (
+        Index("ix_kb_obligations_reg_section", "regulation", "regulation_section"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=True, index=True)
+    section_id = Column(String(32), ForeignKey("kb_document_sections.id"), nullable=True, index=True)
+    obligation_key = Column(String(128), nullable=False, unique=True, index=True)
+    title = Column(String(255), nullable=False)
+    summary = Column(Text, nullable=False)
+    layer = Column(String(32), nullable=False, default="canonical_regulatory_graph", index=True)
+    regulation = Column(String(120), nullable=False, index=True)
+    regulation_section = Column(String(120), nullable=False, index=True)
+    covered_entity_type = Column(String(120), nullable=True, index=True)
+    trigger_conditions_json = Column(Text, nullable=True)
+    exceptions_json = Column(Text, nullable=True)
+    consumer_rights_json = Column(Text, nullable=True)
+    required_communications_json = Column(Text, nullable=True)
+    effective_from = Column(String(32), nullable=True, index=True)
+    effective_to = Column(String(32), nullable=True, index=True)
+    source_tier = Column(Integer, nullable=False, default=1)
+    validation_status = Column(String(32), nullable=False, default="seeded", index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    document = relationship("KBSourceDocument", back_populates="obligations")
+    section = relationship("KBDocumentSection", back_populates="obligations")
+    evidence_requirements = relationship("KBEvidenceRequirement", back_populates="obligation")
+    deadlines = relationship("KBDeadline", back_populates="obligation")
+
+
+class KBEvidenceRequirement(Base):
+    """Evidence item needed to evaluate or satisfy an obligation."""
+
+    __tablename__ = "kb_evidence_requirements"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    obligation_id = Column(String(32), ForeignKey("kb_obligations.id"), nullable=False, index=True)
+    evidence_key = Column(String(128), nullable=False, index=True)
+    label = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    evidence_type = Column(String(64), nullable=True, index=True)
+    is_mandatory = Column(Boolean, nullable=False, default=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    obligation = relationship("KBObligation", back_populates="evidence_requirements")
+
+
+class KBDeadline(Base):
+    """Timing or response deadline associated with an obligation."""
+
+    __tablename__ = "kb_deadlines"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    obligation_id = Column(String(32), ForeignKey("kb_obligations.id"), nullable=False, index=True)
+    deadline_key = Column(String(128), nullable=False, index=True)
+    label = Column(String(255), nullable=False)
+    duration_text = Column(String(255), nullable=True)
+    trigger_event = Column(String(255), nullable=True)
+    deadline_type = Column(String(64), nullable=True, index=True)
+    rule_text = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    obligation = relationship("KBObligation", back_populates="deadlines")
+
+
+class KBControl(Base):
+    """Operational or supervisory control relevant to complaint handling."""
+
+    __tablename__ = "kb_controls"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=True, index=True)
+    control_key = Column(String(128), nullable=False, unique=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    control_domain = Column(String(120), nullable=True, index=True)
+    control_type = Column(String(64), nullable=True, index=True)
+    summary = Column(Text, nullable=True)
+    owning_function = Column(String(120), nullable=True, index=True)
+    source_tier = Column(Integer, nullable=False, default=2)
+    validation_status = Column(String(32), nullable=False, default="seeded", index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    document = relationship("KBSourceDocument", back_populates="controls")
+    failure_mode_links = relationship("KBFailureModeControlLink", back_populates="control")
+
+
+class KBFailureMode(Base):
+    """Canonical or supervisory failure mode used by root-cause analysis."""
+
+    __tablename__ = "kb_failure_modes"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=True, index=True)
+    failure_mode_key = Column(String(128), nullable=False, unique=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    consumer_harm_types_json = Column(Text, nullable=True)
+    owning_functions_json = Column(Text, nullable=True)
+    remediation_actions_json = Column(Text, nullable=True)
+    source_tier = Column(Integer, nullable=False, default=2)
+    validation_status = Column(String(32), nullable=False, default="seeded", index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    document = relationship("KBSourceDocument", back_populates="failure_modes")
+    control_links = relationship("KBFailureModeControlLink", back_populates="failure_mode")
+    risk_links = relationship("KBFailureModeRiskIndicatorLink", back_populates="failure_mode")
+    precedent_clusters = relationship("KBPrecedentCluster", back_populates="failure_mode")
+
+
+class KBRiskIndicator(Base):
+    """Risk indicator that can be raised by a failure mode or complaint pattern."""
+
+    __tablename__ = "kb_risk_indicators"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    indicator_key = Column(String(128), nullable=False, unique=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    severity_hint = Column(String(32), nullable=True, index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    failure_mode_links = relationship("KBFailureModeRiskIndicatorLink", back_populates="risk_indicator")
+
+
+class KBFailureModeControlLink(Base):
+    """Many-to-many mapping between controls and the failure modes they mitigate."""
+
+    __tablename__ = "kb_failure_mode_control_links"
+    __table_args__ = (
+        UniqueConstraint("failure_mode_id", "control_id", name="uq_kb_failure_mode_control"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    failure_mode_id = Column(String(32), ForeignKey("kb_failure_modes.id"), nullable=False, index=True)
+    control_id = Column(String(32), ForeignKey("kb_controls.id"), nullable=False, index=True)
+    relation_type = Column(String(32), nullable=False, default="mitigates", index=True)
+    strength = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    failure_mode = relationship("KBFailureMode", back_populates="control_links")
+    control = relationship("KBControl", back_populates="failure_mode_links")
+
+
+class KBFailureModeRiskIndicatorLink(Base):
+    """Many-to-many mapping between failure modes and risk indicators."""
+
+    __tablename__ = "kb_failure_mode_risk_indicator_links"
+    __table_args__ = (
+        UniqueConstraint("failure_mode_id", "risk_indicator_id", name="uq_kb_failure_mode_risk"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    failure_mode_id = Column(String(32), ForeignKey("kb_failure_modes.id"), nullable=False, index=True)
+    risk_indicator_id = Column(String(32), ForeignKey("kb_risk_indicators.id"), nullable=False, index=True)
+    relation_type = Column(String(32), nullable=False, default="raises", index=True)
+    notes = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    failure_mode = relationship("KBFailureMode", back_populates="risk_links")
+    risk_indicator = relationship("KBRiskIndicator", back_populates="failure_mode_links")
+
+
+class KBPrecedentCluster(Base):
+    """Complaint precedent cluster connected to a likely failure mode."""
+
+    __tablename__ = "kb_precedent_clusters"
+
+    id = Column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex)
+    document_id = Column(String(32), ForeignKey("kb_source_documents.id"), nullable=True, index=True)
+    cluster_key = Column(String(128), nullable=False, unique=True, index=True)
+    name = Column(String(255), nullable=False)
+    product = Column(String(120), nullable=True, index=True)
+    issue = Column(String(120), nullable=True, index=True)
+    narrative_signature = Column(Text, nullable=True)
+    failure_mode_id = Column(String(32), ForeignKey("kb_failure_modes.id"), nullable=True, index=True)
+    complaint_count = Column(Integer, nullable=False, default=0)
+    first_seen_at = Column(String(32), nullable=True)
+    last_seen_at = Column(String(32), nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    document = relationship("KBSourceDocument", back_populates="precedent_clusters")
+    failure_mode = relationship("KBFailureMode", back_populates="precedent_clusters")
 
 
 class EvaluationDataset(Base):

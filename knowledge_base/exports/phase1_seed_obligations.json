@@ -1,0 +1,53 @@
+[
+  {
+    "obligation_id": "reg_e_error_resolution_seed",
+    "label": "Reg E error-resolution investigation and response",
+    "summary": "Seed obligation for unauthorized EFT complaint handling. Final extraction must separate notice timing, investigation, provisional credit, and response duties by section.",
+    "regulation": "Regulation E",
+    "regulation_section": "12 CFR 1005.11",
+    "trigger_conditions": [
+      "consumer asserts an error or unauthorized EFT",
+      "notice received within applicable timing window"
+    ],
+    "evidence_requirements": [
+      "transaction history",
+      "authorization evidence",
+      "consumer notice date",
+      "statement delivery timeline"
+    ],
+    "deadlines": [
+      "investigation timing must be determined from validated regulation text"
+    ],
+    "exceptions": [],
+    "consumer_rights": [
+      "consumer receives error-resolution process protections"
+    ],
+    "effective_period": {
+      "valid_from": "seed",
+      "valid_to": null
+    },
+    "citations": [
+      {
+        "source_family_id": "cfpb_regulations_portal",
+        "source_url": "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+        "document_title": "Regulation E section 1005.11",
+        "citation_anchor": "12 CFR 1005.11",
+        "section_path": [],
+        "checksum": null,
+        "retrieval_timestamp": null,
+        "tier": 1
+      },
+      {
+        "source_family_id": "govinfo_cfr_bulk_xml",
+        "source_url": "https://www.govinfo.gov/app/collection/cfr/",
+        "document_title": "GovInfo CFR bulk data",
+        "citation_anchor": "12 CFR 1005.11",
+        "section_path": [],
+        "checksum": null,
+        "retrieval_timestamp": null,
+        "tier": 1
+      }
+    ],
+    "validation_status": "seeded"
+  }
+]

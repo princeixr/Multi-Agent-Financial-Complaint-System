@@ -1,0 +1,417 @@
+# Bootstrap Knowledge Graph
+
+This artifact is generated from the source inventory and layer design defined in `architecture.md`.
+
+## Summary
+
+- Graph name: `regulatory_complaint_knowledge_bootstrap`
+- Nodes: `58`
+- Edges: `119`
+- Node types: `{'entity_type': 14, 'layer': 4, 'phase': 4, 'relationship_type': 10, 'source_family': 15, 'source_group': 6, 'store': 5}`
+
+## Mermaid View
+
+```mermaid
+flowchart TD
+    classDef layer fill:#DCEBFF,stroke:#4C78A8,color:#102A43
+    classDef source_group fill:#E8F5E9,stroke:#2E7D32,color:#1B4332
+    classDef source_family fill:#F1F8E9,stroke:#689F38,color:#2F3E1F
+    classDef store fill:#FFF3E0,stroke:#EF6C00,color:#663C00
+    classDef entity_type fill:#F3E5F5,stroke:#8E24AA,color:#4A148C
+    classDef relationship_type fill:#FCE4EC,stroke:#D81B60,color:#880E4F
+    classDef phase fill:#E0F7FA,stroke:#00838F,color:#004D40
+    canonical_regulatory_graph["Canonical Regulatory Graph"]
+    class canonical_regulatory_graph layer
+    supervisory_control_graph["Supervisory  /  Control Graph"]
+    class supervisory_control_graph layer
+    complaint_precedent_graph["Complaint Precedent Graph"]
+    class complaint_precedent_graph layer
+    lightrag_evidence_layer["LightRAG Evidence Layer"]
+    class lightrag_evidence_layer layer
+    raw_object_store["Raw Object Store"]
+    class raw_object_store store
+    normalized_document_store["Normalized Document Store"]
+    class normalized_document_store store
+    canonical_graph_store["Canonical Graph Store"]
+    class canonical_graph_store store
+    analytical_store["Analytical Store"]
+    class analytical_store store
+    vector_retrieval_store["Vector  /  Retrieval Store"]
+    class vector_retrieval_store store
+    cfpb_complaints["CFPB complaints and taxonomy"]
+    class cfpb_complaints source_group
+    cfpb_consumer_complaint_database["CFPB Consumer Complaint Database"]
+    class cfpb_consumer_complaint_database source_family
+    cfpb_complaint_field_definitions["CFPB complaint field definitions and release notes"]
+    class cfpb_complaint_field_definitions source_family
+    cfpb_complaint_product_coverage["CFPB complaint product coverage"]
+    class cfpb_complaint_product_coverage source_family
+    cfpb_regulations["CFPB regulations and interpretations"]
+    class cfpb_regulations source_group
+    cfpb_regulations_portal["CFPB regulations portal and CFR pages"]
+    class cfpb_regulations_portal source_family
+    federal_regulatory_feeds["GovInfo and Federal Register"]
+    class federal_regulatory_feeds source_group
+    govinfo_cfr_bulk_xml["GovInfo CFR bulk XML and API"]
+    class govinfo_cfr_bulk_xml source_family
+    federal_register_updates["Federal Register rule tracking"]
+    class federal_register_updates source_family
+    supervision_and_exams["Supervisory and examination guidance"]
+    class supervision_and_exams source_group
+    cfpb_supervision_manual["CFPB Supervision and Examination Manual"]
+    class cfpb_supervision_manual source_family
+    cfpb_cmr_exam_procedures["CFPB Compliance Management Review Examination Procedures"]
+    class cfpb_cmr_exam_procedures source_family
+    occ_comptrollers_handbook["OCC Comptroller's Handbook"]
+    class occ_comptrollers_handbook source_family
+    fdic_compliance_manual["FDIC Consumer Compliance Examination Manual"]
+    class fdic_compliance_manual source_family
+    ffiec_bsa_aml_manual["FFIEC BSA / AML Manual and procedures"]
+    class ffiec_bsa_aml_manual source_family
+    fincen_guidance["FinCEN guidance"]
+    class fincen_guidance source_family
+    agreements_and_disclosures["Product agreements and disclosures"]
+    class agreements_and_disclosures source_group
+    cfpb_credit_card_agreements["CFPB credit card agreement database"]
+    class cfpb_credit_card_agreements source_family
+    cfpb_prepaid_agreements["CFPB prepaid account agreements"]
+    class cfpb_prepaid_agreements source_family
+    internal_sources["Internal institutional sources"]
+    class internal_sources source_group
+    internal_policy_and_operations["Internal policy, SOP, routing, and operational artifacts"]
+    class internal_policy_and_operations source_family
+    entity_product["Product"]
+    class entity_product entity_type
+    entity_regulation["Regulation"]
+    class entity_regulation entity_type
+    entity_reg_section["RegSection"]
+    class entity_reg_section entity_type
+    entity_obligation["Obligation"]
+    class entity_obligation entity_type
+    entity_deadline["Deadline"]
+    class entity_deadline entity_type
+    entity_evidence_requirement["EvidenceRequirement"]
+    class entity_evidence_requirement entity_type
+    entity_control["Control"]
+    class entity_control entity_type
+    entity_failure_mode["FailureMode"]
+    class entity_failure_mode entity_type
+    entity_risk_indicator["RiskIndicator"]
+    class entity_risk_indicator entity_type
+    entity_remediation_action["RemediationAction"]
+    class entity_remediation_action entity_type
+    entity_complaint["Complaint"]
+    class entity_complaint entity_type
+    entity_narrative_cluster["NarrativeCluster"]
+    class entity_narrative_cluster entity_type
+    entity_response_type["ResponseType"]
+    class entity_response_type entity_type
+    entity_internal_policy["InternalPolicy"]
+    class entity_internal_policy entity_type
+    rel_governed_by["GOVERNED_BY"]
+    class rel_governed_by relationship_type
+    rel_contains["CONTAINS"]
+    class rel_contains relationship_type
+    rel_imposes["IMPOSES"]
+    class rel_imposes relationship_type
+    rel_requires_evidence["REQUIRES_EVIDENCE"]
+    class rel_requires_evidence relationship_type
+    rel_has_deadline["HAS_DEADLINE"]
+    class rel_has_deadline relationship_type
+    rel_evaluates["EVALUATES"]
+    class rel_evaluates relationship_type
+    rel_mitigates["MITIGATES"]
+    class rel_mitigates relationship_type
+    rel_raises["RAISES"]
+    class rel_raises relationship_type
+    rel_belongs_to["BELONGS_TO"]
+    class rel_belongs_to relationship_type
+    rel_suggests["SUGGESTS"]
+    class rel_suggests relationship_type
+    phase_1["Phase 1 - Canonical complaint-risk spine"]
+    class phase_1 phase
+    phase_2["Phase 2 - Supervisory and control intelligence"]
+    class phase_2 phase
+    phase_3["Phase 3 - Agreement and product-document intelligence"]
+    class phase_3 phase
+    phase_4["Phase 4 - Internal policy and operations intelligence"]
+    class phase_4 phase
+    cfpb_complaints -->|lands_in| raw_object_store
+    cfpb_complaints -->|normalizes_to| normalized_document_store
+    cfpb_complaints -->|contains| cfpb_consumer_complaint_database
+    cfpb_consumer_complaint_database -->|normalizes_to| normalized_document_store
+    cfpb_consumer_complaint_database -->|aggregates_to| analytical_store
+    cfpb_consumer_complaint_database -->|feeds| complaint_precedent_graph
+    cfpb_consumer_complaint_database -->|feeds| lightrag_evidence_layer
+    cfpb_complaints -->|contains| cfpb_complaint_field_definitions
+    cfpb_complaint_field_definitions -->|normalizes_to| normalized_document_store
+    cfpb_complaint_field_definitions -->|aggregates_to| analytical_store
+    cfpb_complaint_field_definitions -->|feeds| complaint_precedent_graph
+    cfpb_complaints -->|contains| cfpb_complaint_product_coverage
+    cfpb_complaint_product_coverage -->|normalizes_to| normalized_document_store
+    cfpb_complaint_product_coverage -->|aggregates_to| analytical_store
+    cfpb_complaint_product_coverage -->|feeds| canonical_regulatory_graph
+    cfpb_complaint_product_coverage -->|feeds| complaint_precedent_graph
+    cfpb_regulations -->|lands_in| raw_object_store
+    cfpb_regulations -->|normalizes_to| normalized_document_store
+    cfpb_regulations -->|contains| cfpb_regulations_portal
+    cfpb_regulations_portal -->|normalizes_to| normalized_document_store
+    cfpb_regulations_portal -->|feeds| canonical_regulatory_graph
+    cfpb_regulations_portal -->|feeds| lightrag_evidence_layer
+    federal_regulatory_feeds -->|lands_in| raw_object_store
+    federal_regulatory_feeds -->|normalizes_to| normalized_document_store
+    federal_regulatory_feeds -->|contains| govinfo_cfr_bulk_xml
+    govinfo_cfr_bulk_xml -->|normalizes_to| normalized_document_store
+    govinfo_cfr_bulk_xml -->|feeds| canonical_regulatory_graph
+    govinfo_cfr_bulk_xml -->|feeds| lightrag_evidence_layer
+    federal_regulatory_feeds -->|contains| federal_register_updates
+    federal_register_updates -->|normalizes_to| normalized_document_store
+    federal_register_updates -->|feeds| canonical_regulatory_graph
+    federal_register_updates -->|feeds| lightrag_evidence_layer
+    supervision_and_exams -->|lands_in| raw_object_store
+    supervision_and_exams -->|normalizes_to| normalized_document_store
+    supervision_and_exams -->|contains| cfpb_supervision_manual
+    cfpb_supervision_manual -->|normalizes_to| normalized_document_store
+    cfpb_supervision_manual -->|feeds| supervisory_control_graph
+    cfpb_supervision_manual -->|feeds| lightrag_evidence_layer
+    supervision_and_exams -->|contains| cfpb_cmr_exam_procedures
+    cfpb_cmr_exam_procedures -->|normalizes_to| normalized_document_store
+    cfpb_cmr_exam_procedures -->|feeds| supervisory_control_graph
+    cfpb_cmr_exam_procedures -->|feeds| lightrag_evidence_layer
+    supervision_and_exams -->|contains| occ_comptrollers_handbook
+    occ_comptrollers_handbook -->|normalizes_to| normalized_document_store
+    occ_comptrollers_handbook -->|feeds| supervisory_control_graph
+    occ_comptrollers_handbook -->|feeds| lightrag_evidence_layer
+    supervision_and_exams -->|contains| fdic_compliance_manual
+    fdic_compliance_manual -->|normalizes_to| normalized_document_store
+    fdic_compliance_manual -->|feeds| supervisory_control_graph
+    fdic_compliance_manual -->|feeds| lightrag_evidence_layer
+    supervision_and_exams -->|contains| ffiec_bsa_aml_manual
+    ffiec_bsa_aml_manual -->|normalizes_to| normalized_document_store
+    ffiec_bsa_aml_manual -->|feeds| supervisory_control_graph
+    ffiec_bsa_aml_manual -->|feeds| lightrag_evidence_layer
+    supervision_and_exams -->|contains| fincen_guidance
+    fincen_guidance -->|normalizes_to| normalized_document_store
+    fincen_guidance -->|feeds| supervisory_control_graph
+    fincen_guidance -->|feeds| lightrag_evidence_layer
+    agreements_and_disclosures -->|lands_in| raw_object_store
+    agreements_and_disclosures -->|normalizes_to| normalized_document_store
+    agreements_and_disclosures -->|contains| cfpb_credit_card_agreements
+    cfpb_credit_card_agreements -->|normalizes_to| normalized_document_store
+    cfpb_credit_card_agreements -->|feeds| lightrag_evidence_layer
+    cfpb_credit_card_agreements -->|feeds| canonical_regulatory_graph
+    agreements_and_disclosures -->|contains| cfpb_prepaid_agreements
+    cfpb_prepaid_agreements -->|normalizes_to| normalized_document_store
+    cfpb_prepaid_agreements -->|feeds| lightrag_evidence_layer
+    cfpb_prepaid_agreements -->|feeds| canonical_regulatory_graph
+    internal_sources -->|lands_in| raw_object_store
+    internal_sources -->|normalizes_to| normalized_document_store
+    internal_sources -->|contains| internal_policy_and_operations
+    internal_policy_and_operations -->|normalizes_to| normalized_document_store
+    internal_policy_and_operations -->|feeds| supervisory_control_graph
+    internal_policy_and_operations -->|feeds| lightrag_evidence_layer
+    canonical_regulatory_graph -->|contains_entity| entity_product
+    canonical_regulatory_graph -->|contains_entity| entity_regulation
+    canonical_regulatory_graph -->|contains_entity| entity_reg_section
+    canonical_regulatory_graph -->|contains_entity| entity_obligation
+    canonical_regulatory_graph -->|contains_entity| entity_deadline
+    canonical_regulatory_graph -->|contains_entity| entity_evidence_requirement
+    supervisory_control_graph -->|contains_entity| entity_control
+    supervisory_control_graph -->|contains_entity| entity_failure_mode
+    supervisory_control_graph -->|contains_entity| entity_risk_indicator
+    supervisory_control_graph -->|contains_entity| entity_remediation_action
+    complaint_precedent_graph -->|contains_entity| entity_complaint
+    complaint_precedent_graph -->|contains_entity| entity_narrative_cluster
+    complaint_precedent_graph -->|contains_entity| entity_response_type
+    supervisory_control_graph -->|contains_entity| entity_internal_policy
+    canonical_graph_store -->|implements| rel_governed_by
+    canonical_graph_store -->|implements| rel_contains
+    canonical_graph_store -->|implements| rel_imposes
+    canonical_graph_store -->|implements| rel_requires_evidence
+    canonical_graph_store -->|implements| rel_has_deadline
+    canonical_graph_store -->|implements| rel_evaluates
+    canonical_graph_store -->|implements| rel_mitigates
+    canonical_graph_store -->|implements| rel_raises
+    canonical_graph_store -->|implements| rel_belongs_to
+    canonical_graph_store -->|implements| rel_suggests
+    normalized_document_store -->|feeds| canonical_regulatory_graph
+    normalized_document_store -->|feeds| supervisory_control_graph
+    normalized_document_store -->|feeds| complaint_precedent_graph
+    normalized_document_store -->|indexes_into| lightrag_evidence_layer
+    canonical_regulatory_graph -->|persists_in| canonical_graph_store
+    supervisory_control_graph -->|persists_in| canonical_graph_store
+    complaint_precedent_graph -->|persists_in| canonical_graph_store
+    complaint_precedent_graph -->|retrieves_from| vector_retrieval_store
+    lightrag_evidence_layer -->|retrieves_from| vector_retrieval_store
+    complaint_precedent_graph -->|measures_in| analytical_store
+    phase_1 -->|delivers| cfpb_complaints
+    phase_1 -->|delivers| cfpb_regulations
+    phase_1 -->|delivers| federal_regulatory_feeds
+    phase_1 -->|delivers| canonical_regulatory_graph
+    phase_1 -->|delivers| complaint_precedent_graph
+    phase_2 -->|delivers| supervision_and_exams
+    phase_2 -->|delivers| supervisory_control_graph
+    phase_3 -->|delivers| agreements_and_disclosures
+    phase_3 -->|delivers| lightrag_evidence_layer
+    phase_4 -->|delivers| internal_sources
+    phase_4 -->|delivers| supervisory_control_graph
+```
+
+## Source Families
+
+### CFPB Compliance Management Review Examination Procedures
+
+- Tier: `2`
+- Authority: `official supervisory procedures`
+- Document types: `html`
+- Outputs: `control expectations, CMS evaluation logic, service-provider oversight themes`
+- URLs:
+  - https://www.consumerfinance.gov/compliance/supervision-examinations/compliance-management-review-examination-procedures/
+
+### CFPB Consumer Complaint Database
+
+- Tier: `3`
+- Authority: `official observational source`
+- Document types: `csv, json, api export`
+- Outputs: `complaint records, response patterns, timeliness signals, narrative clusters`
+- URLs:
+  - https://www.consumerfinance.gov/data-research/consumer-complaints/
+
+### CFPB Supervision and Examination Manual
+
+- Tier: `2`
+- Authority: `official supervisory guidance`
+- Document types: `pdf, html`
+- Outputs: `exam logic, risk themes, consumer harm framing`
+- URLs:
+  - https://www.consumerfinance.gov/compliance/supervision-examinations/
+  - https://files.consumerfinance.gov/f/documents/cfpb_supervision-and-examination-manual.pdf
+
+### CFPB complaint field definitions and release notes
+
+- Tier: `1`
+- Authority: `official metadata source`
+- Document types: `html, documentation`
+- Outputs: `field semantics, taxonomy version lineage, trust hierarchy hints`
+- URLs:
+  - https://www.consumerfinance.gov/complaint/data-use/
+  - https://cfpb.github.io/api/ccdb/fields.html
+  - https://cfpb.github.io/api/ccdb/release-notes.html
+
+### CFPB complaint product coverage
+
+- Tier: `2`
+- Authority: `official scope reference`
+- Document types: `html`
+- Outputs: `public complaint product universe`
+- URLs:
+  - https://www.consumerfinance.gov/complaint/
+
+### CFPB credit card agreement database
+
+- Tier: `2`
+- Authority: `official agreement source`
+- Document types: `pdf, html, downloadable agreements`
+- Outputs: `fees, disclosures, product terms, issuer-specific clauses`
+- URLs:
+  - https://www.consumerfinance.gov/credit-cards/agreements/
+  - https://www.consumerfinance.gov/credit-cards/agreements/archive/
+  - https://www.consumerfinance.gov/data-research/credit-card-data/
+
+### CFPB prepaid account agreements
+
+- Tier: `2`
+- Authority: `official agreement source`
+- Document types: `pdf, html, downloadable agreements`
+- Outputs: `fee terms, dispute terms, product comparison context`
+- URLs:
+  - https://www.consumerfinance.gov/data-research/prepaid-accounts/
+  - https://www.consumerfinance.gov/data-research/prepaid-accounts/download-agreements/
+
+### CFPB regulations portal and CFR pages
+
+- Tier: `1`
+- Authority: `primary regulatory source`
+- Document types: `html, regulatory text, interpretation pages`
+- Outputs: `regulations, regulation parts, sections, official interpretations, model forms`
+- URLs:
+  - https://www.consumerfinance.gov/rules-policy/regulations/
+  - https://www.consumerfinance.gov/rules-policy/final-rules/code-federal-regulations/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1005/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1026/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1022/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1006/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1024/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1002/
+  - https://www.consumerfinance.gov/rules-policy/regulations/1030/
+
+### FDIC Consumer Compliance Examination Manual
+
+- Tier: `2`
+- Authority: `official supervisory guidance`
+- Document types: `html`
+- Outputs: `CMS expectations, consumer harm evaluation, supervisory structure`
+- URLs:
+  - https://www.fdic.gov/consumer-compliance-examination-manual
+  - https://www.fdic.gov/consumer-compliance-examination-manual/table-contents
+
+### FFIEC BSA/AML Manual and procedures
+
+- Tier: `2`
+- Authority: `official supervisory guidance`
+- Document types: `html`
+- Outputs: `AML risk frameworks, CIP/KYC procedures, monitoring expectations`
+- URLs:
+  - https://bsaaml.ffiec.gov/manual
+  - https://bsaaml.ffiec.gov/examprocedures
+  - https://www.ffiec.gov/
+
+### Federal Register rule tracking
+
+- Tier: `1`
+- Authority: `primary amendment source`
+- Document types: `api, xml, rule notices`
+- Outputs: `effective-date updates, amendment lineage, freshness monitoring`
+- URLs:
+  - https://www.federalregister.gov/developers/documentation/api/v1
+  - https://www.federalregister.gov/reader-aids/developer-resources
+  - https://www.govinfo.gov/help/fr
+
+### FinCEN guidance
+
+- Tier: `2`
+- Authority: `official interpretive guidance`
+- Document types: `html, advisories`
+- Outputs: `BSA/AML clarifications, industry-specific risk guidance`
+- URLs:
+  - https://www.fincen.gov/resources/statutes-regulations/guidance
+
+### GovInfo CFR bulk XML and API
+
+- Tier: `1`
+- Authority: `primary structured source`
+- Document types: `xml, metadata api`
+- Outputs: `canonical section identity, structured CFR snapshots, source metadata`
+- URLs:
+  - https://www.govinfo.gov/app/collection/cfr/
+  - https://www.govinfo.gov/bulkdata/
+  - https://www.govinfo.gov/developers
+  - https://www.govinfo.gov/help/cfr
+
+### Internal policy, SOP, routing, and operational artifacts
+
+- Tier: `4`
+- Authority: `institution-specific source`
+- Document types: `pdf, docx, spreadsheet, wiki, ticket exports`
+- Outputs: `routing logic, escalation thresholds, refund authority matrix, playbooks, product catalog mappings`
+
+### OCC Comptroller's Handbook
+
+- Tier: `2`
+- Authority: `official supervisory guidance`
+- Document types: `html, pdf`
+- Outputs: `consumer compliance risk framing, CMS guidance, UDAAP examination framing`
+- URLs:
+  - https://www.occ.treas.gov/publications-and-resources/publications/comptrollers-handbook/index-comptrollers-handbook.html
+  - https://www.occ.treas.gov/publications-and-resources/publications/comptrollers-handbook/files/compliance-mgmt-systems/index-compliance-management-systems.html
+  - https://www.occ.treas.gov/publications-and-resources/publications/comptrollers-handbook/files/unfair-deceptive-act/index-udaap.html

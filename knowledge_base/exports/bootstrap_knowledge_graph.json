@@ -1,0 +1,1548 @@
+{
+  "name": "regulatory_complaint_knowledge_bootstrap",
+  "nodes": [
+    {
+      "id": "canonical_regulatory_graph",
+      "label": "Canonical Regulatory Graph",
+      "node_type": "layer",
+      "description": "Curated truth for products, regulations, sections, obligations, deadlines, and evidence requirements.",
+      "metadata": {}
+    },
+    {
+      "id": "supervisory_control_graph",
+      "label": "Supervisory / Control Graph",
+      "node_type": "layer",
+      "description": "Operational and supervisory mapping for controls, failure modes, risk indicators, and remediation.",
+      "metadata": {}
+    },
+    {
+      "id": "complaint_precedent_graph",
+      "label": "Complaint Precedent Graph",
+      "node_type": "layer",
+      "description": "Observational layer over complaint history, response patterns, narrative clusters, and trend signals.",
+      "metadata": {}
+    },
+    {
+      "id": "lightrag_evidence_layer",
+      "label": "LightRAG Evidence Layer",
+      "node_type": "layer",
+      "description": "Text-rich retrieval layer for manuals, interpretations, agreements, narratives, and policies.",
+      "metadata": {}
+    },
+    {
+      "id": "raw_object_store",
+      "label": "Raw Object Store",
+      "node_type": "store",
+      "description": "Immutable raw files with acquisition lineage and checksums.",
+      "metadata": {}
+    },
+    {
+      "id": "normalized_document_store",
+      "label": "Normalized Document Store",
+      "node_type": "store",
+      "description": "Normalized docs, sections, chunks, and metadata for downstream extraction and retrieval.",
+      "metadata": {}
+    },
+    {
+      "id": "canonical_graph_store",
+      "label": "Canonical Graph Store",
+      "node_type": "store",
+      "description": "Deterministic graph backing products, regulations, obligations, controls, and mappings.",
+      "metadata": {}
+    },
+    {
+      "id": "analytical_store",
+      "label": "Analytical Store",
+      "node_type": "store",
+      "description": "Trend tables, clusters, monitoring signals, and feature computation.",
+      "metadata": {}
+    },
+    {
+      "id": "vector_retrieval_store",
+      "label": "Vector / Retrieval Store",
+      "node_type": "store",
+      "description": "Semantic retrieval index for narratives, chunks, and evidence recall.",
+      "metadata": {}
+    },
+    {
+      "id": "cfpb_complaints",
+      "label": "CFPB complaints and taxonomy",
+      "node_type": "source_group",
+      "description": "Observational complaint history and taxonomy semantics.",
+      "metadata": {}
+    },
+    {
+      "id": "cfpb_consumer_complaint_database",
+      "label": "CFPB Consumer Complaint Database",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 3,
+        "authority_type": "official observational source",
+        "document_types": [
+          "csv",
+          "json",
+          "api export"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/data-research/consumer-complaints/"
+        ],
+        "outputs": [
+          "complaint records",
+          "response patterns",
+          "timeliness signals",
+          "narrative clusters"
+        ]
+      }
+    },
+    {
+      "id": "cfpb_complaint_field_definitions",
+      "label": "CFPB complaint field definitions and release notes",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 1,
+        "authority_type": "official metadata source",
+        "document_types": [
+          "html",
+          "documentation"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/complaint/data-use/",
+          "https://cfpb.github.io/api/ccdb/fields.html",
+          "https://cfpb.github.io/api/ccdb/release-notes.html"
+        ],
+        "outputs": [
+          "field semantics",
+          "taxonomy version lineage",
+          "trust hierarchy hints"
+        ]
+      }
+    },
+    {
+      "id": "cfpb_complaint_product_coverage",
+      "label": "CFPB complaint product coverage",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official scope reference",
+        "document_types": [
+          "html"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/complaint/"
+        ],
+        "outputs": [
+          "public complaint product universe"
+        ]
+      }
+    },
+    {
+      "id": "cfpb_regulations",
+      "label": "CFPB regulations and interpretations",
+      "node_type": "source_group",
+      "description": "Primary bureau regulations, commentary, and model forms.",
+      "metadata": {}
+    },
+    {
+      "id": "cfpb_regulations_portal",
+      "label": "CFPB regulations portal and CFR pages",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 1,
+        "authority_type": "primary regulatory source",
+        "document_types": [
+          "html",
+          "regulatory text",
+          "interpretation pages"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/rules-policy/regulations/",
+          "https://www.consumerfinance.gov/rules-policy/final-rules/code-federal-regulations/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1005/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1026/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1022/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1006/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1024/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1002/",
+          "https://www.consumerfinance.gov/rules-policy/regulations/1030/"
+        ],
+        "outputs": [
+          "regulations",
+          "regulation parts",
+          "sections",
+          "official interpretations",
+          "model forms"
+        ]
+      }
+    },
+    {
+      "id": "federal_regulatory_feeds",
+      "label": "GovInfo and Federal Register",
+      "node_type": "source_group",
+      "description": "Structured machine-readable regulation snapshots and amendment lineage.",
+      "metadata": {}
+    },
+    {
+      "id": "govinfo_cfr_bulk_xml",
+      "label": "GovInfo CFR bulk XML and API",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 1,
+        "authority_type": "primary structured source",
+        "document_types": [
+          "xml",
+          "metadata api"
+        ],
+        "urls": [
+          "https://www.govinfo.gov/app/collection/cfr/",
+          "https://www.govinfo.gov/bulkdata/",
+          "https://www.govinfo.gov/developers",
+          "https://www.govinfo.gov/help/cfr"
+        ],
+        "outputs": [
+          "canonical section identity",
+          "structured CFR snapshots",
+          "source metadata"
+        ]
+      }
+    },
+    {
+      "id": "federal_register_updates",
+      "label": "Federal Register rule tracking",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 1,
+        "authority_type": "primary amendment source",
+        "document_types": [
+          "api",
+          "xml",
+          "rule notices"
+        ],
+        "urls": [
+          "https://www.federalregister.gov/developers/documentation/api/v1",
+          "https://www.federalregister.gov/reader-aids/developer-resources",
+          "https://www.govinfo.gov/help/fr"
+        ],
+        "outputs": [
+          "effective-date updates",
+          "amendment lineage",
+          "freshness monitoring"
+        ]
+      }
+    },
+    {
+      "id": "supervision_and_exams",
+      "label": "Supervisory and examination guidance",
+      "node_type": "source_group",
+      "description": "Control expectations, consumer harm framing, and examination logic.",
+      "metadata": {}
+    },
+    {
+      "id": "cfpb_supervision_manual",
+      "label": "CFPB Supervision and Examination Manual",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official supervisory guidance",
+        "document_types": [
+          "pdf",
+          "html"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/compliance/supervision-examinations/",
+          "https://files.consumerfinance.gov/f/documents/cfpb_supervision-and-examination-manual.pdf"
+        ],
+        "outputs": [
+          "exam logic",
+          "risk themes",
+          "consumer harm framing"
+        ]
+      }
+    },
+    {
+      "id": "cfpb_cmr_exam_procedures",
+      "label": "CFPB Compliance Management Review Examination Procedures",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official supervisory procedures",
+        "document_types": [
+          "html"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/compliance/supervision-examinations/compliance-management-review-examination-procedures/"
+        ],
+        "outputs": [
+          "control expectations",
+          "CMS evaluation logic",
+          "service-provider oversight themes"
+        ]
+      }
+    },
+    {
+      "id": "occ_comptrollers_handbook",
+      "label": "OCC Comptroller's Handbook",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official supervisory guidance",
+        "document_types": [
+          "html",
+          "pdf"
+        ],
+        "urls": [
+          "https://www.occ.treas.gov/publications-and-resources/publications/comptrollers-handbook/index-comptrollers-handbook.html",
+          "https://www.occ.treas.gov/publications-and-resources/publications/comptrollers-handbook/files/compliance-mgmt-systems/index-compliance-management-systems.html",
+          "https://www.occ.treas.gov/publications-and-resources/publications/comptrollers-handbook/files/unfair-deceptive-act/index-udaap.html"
+        ],
+        "outputs": [
+          "consumer compliance risk framing",
+          "CMS guidance",
+          "UDAAP examination framing"
+        ]
+      }
+    },
+    {
+      "id": "fdic_compliance_manual",
+      "label": "FDIC Consumer Compliance Examination Manual",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official supervisory guidance",
+        "document_types": [
+          "html"
+        ],
+        "urls": [
+          "https://www.fdic.gov/consumer-compliance-examination-manual",
+          "https://www.fdic.gov/consumer-compliance-examination-manual/table-contents"
+        ],
+        "outputs": [
+          "CMS expectations",
+          "consumer harm evaluation",
+          "supervisory structure"
+        ]
+      }
+    },
+    {
+      "id": "ffiec_bsa_aml_manual",
+      "label": "FFIEC BSA/AML Manual and procedures",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official supervisory guidance",
+        "document_types": [
+          "html"
+        ],
+        "urls": [
+          "https://bsaaml.ffiec.gov/manual",
+          "https://bsaaml.ffiec.gov/examprocedures",
+          "https://www.ffiec.gov/"
+        ],
+        "outputs": [
+          "AML risk frameworks",
+          "CIP/KYC procedures",
+          "monitoring expectations"
+        ]
+      }
+    },
+    {
+      "id": "fincen_guidance",
+      "label": "FinCEN guidance",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official interpretive guidance",
+        "document_types": [
+          "html",
+          "advisories"
+        ],
+        "urls": [
+          "https://www.fincen.gov/resources/statutes-regulations/guidance"
+        ],
+        "outputs": [
+          "BSA/AML clarifications",
+          "industry-specific risk guidance"
+        ]
+      }
+    },
+    {
+      "id": "agreements_and_disclosures",
+      "label": "Product agreements and disclosures",
+      "node_type": "source_group",
+      "description": "Issuer and product terms that drive complaint expectations and clause-level evidence.",
+      "metadata": {}
+    },
+    {
+      "id": "cfpb_credit_card_agreements",
+      "label": "CFPB credit card agreement database",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official agreement source",
+        "document_types": [
+          "pdf",
+          "html",
+          "downloadable agreements"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/credit-cards/agreements/",
+          "https://www.consumerfinance.gov/credit-cards/agreements/archive/",
+          "https://www.consumerfinance.gov/data-research/credit-card-data/"
+        ],
+        "outputs": [
+          "fees",
+          "disclosures",
+          "product terms",
+          "issuer-specific clauses"
+        ]
+      }
+    },
+    {
+      "id": "cfpb_prepaid_agreements",
+      "label": "CFPB prepaid account agreements",
+      "node_type": "source_family",
+      "description": "",
+      "metadata": {
+        "tier": 2,
+        "authority_type": "official agreement source",
+        "document_types": [
+          "pdf",
+          "html",
+          "downloadable agreements"
+        ],
+        "urls": [
+          "https://www.consumerfinance.gov/data-research/prepaid-accounts/",
+          "https://www.consumerfinance.gov/data-research/prepaid-accounts/download-agreements/"
+        ],
+        "outputs": [
+          "fee terms",
+          "dispute terms",
+          "product comparison context"
+        ]
+      }
+    },
+    {
+      "id": "internal_sources",
+      "label": "Internal institutional sources",
+      "node_type": "source_group",
+      "description": "Company-owned policy, routing, and operational control context with restricted access.",
+      "metadata": {}
+    },
+    {
+      "id": "internal_policy_and_operations",
+      "label": "Internal policy, SOP, routing, and operational artifacts",
+      "node_type": "source_family",
+      "description": "Must remain access-controlled and separated from public-source retrieval.",
+      "metadata": {
+        "tier": 4,
+        "authority_type": "institution-specific source",
+        "document_types": [
+          "pdf",
+          "docx",
+          "spreadsheet",
+          "wiki",
+          "ticket exports"
+        ],
+        "urls": [],
+        "outputs": [
+          "routing logic",
+          "escalation thresholds",
+          "refund authority matrix",
+          "playbooks",
+          "product catalog mappings"
+        ]
+      }
+    },
+    {
+      "id": "entity_product",
+      "label": "Product",
+      "node_type": "entity_type",
+      "description": "Core entity type for canonical_regulatory_graph.",
+      "metadata": {
+        "layer": "canonical_regulatory_graph"
+      }
+    },
+    {
+      "id": "entity_regulation",
+      "label": "Regulation",
+      "node_type": "entity_type",
+      "description": "Core entity type for canonical_regulatory_graph.",
+      "metadata": {
+        "layer": "canonical_regulatory_graph"
+      }
+    },
+    {
+      "id": "entity_reg_section",
+      "label": "RegSection",
+      "node_type": "entity_type",
+      "description": "Core entity type for canonical_regulatory_graph.",
+      "metadata": {
+        "layer": "canonical_regulatory_graph"
+      }
+    },
+    {
+      "id": "entity_obligation",
+      "label": "Obligation",
+      "node_type": "entity_type",
+      "description": "Core entity type for canonical_regulatory_graph.",
+      "metadata": {
+        "layer": "canonical_regulatory_graph"
+      }
+    },
+    {
+      "id": "entity_deadline",
+      "label": "Deadline",
+      "node_type": "entity_type",
+      "description": "Core entity type for canonical_regulatory_graph.",
+      "metadata": {
+        "layer": "canonical_regulatory_graph"
+      }
+    },
+    {
+      "id": "entity_evidence_requirement",
+      "label": "EvidenceRequirement",
+      "node_type": "entity_type",
+      "description": "Core entity type for canonical_regulatory_graph.",
+      "metadata": {
+        "layer": "canonical_regulatory_graph"
+      }
+    },
+    {
+      "id": "entity_control",
+      "label": "Control",
+      "node_type": "entity_type",
+      "description": "Core entity type for supervisory_control_graph.",
+      "metadata": {
+        "layer": "supervisory_control_graph"
+      }
+    },
+    {
+      "id": "entity_failure_mode",
+      "label": "FailureMode",
+      "node_type": "entity_type",
+      "description": "Core entity type for supervisory_control_graph.",
+      "metadata": {
+        "layer": "supervisory_control_graph"
+      }
+    },
+    {
+      "id": "entity_risk_indicator",
+      "label": "RiskIndicator",
+      "node_type": "entity_type",
+      "description": "Core entity type for supervisory_control_graph.",
+      "metadata": {
+        "layer": "supervisory_control_graph"
+      }
+    },
+    {
+      "id": "entity_remediation_action",
+      "label": "RemediationAction",
+      "node_type": "entity_type",
+      "description": "Core entity type for supervisory_control_graph.",
+      "metadata": {
+        "layer": "supervisory_control_graph"
+      }
+    },
+    {
+      "id": "entity_complaint",
+      "label": "Complaint",
+      "node_type": "entity_type",
+      "description": "Core entity type for complaint_precedent_graph.",
+      "metadata": {
+        "layer": "complaint_precedent_graph"
+      }
+    },
+    {
+      "id": "entity_narrative_cluster",
+      "label": "NarrativeCluster",
+      "node_type": "entity_type",
+      "description": "Core entity type for complaint_precedent_graph.",
+      "metadata": {
+        "layer": "complaint_precedent_graph"
+      }
+    },
+    {
+      "id": "entity_response_type",
+      "label": "ResponseType",
+      "node_type": "entity_type",
+      "description": "Core entity type for complaint_precedent_graph.",
+      "metadata": {
+        "layer": "complaint_precedent_graph"
+      }
+    },
+    {
+      "id": "entity_internal_policy",
+      "label": "InternalPolicy",
+      "node_type": "entity_type",
+      "description": "Core entity type for supervisory_control_graph.",
+      "metadata": {
+        "layer": "supervisory_control_graph"
+      }
+    },
+    {
+      "id": "rel_governed_by",
+      "label": "GOVERNED_BY",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for product-regulation.",
+      "metadata": {
+        "domain": "product-regulation"
+      }
+    },
+    {
+      "id": "rel_contains",
+      "label": "CONTAINS",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for regulation-section.",
+      "metadata": {
+        "domain": "regulation-section"
+      }
+    },
+    {
+      "id": "rel_imposes",
+      "label": "IMPOSES",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for section-obligation.",
+      "metadata": {
+        "domain": "section-obligation"
+      }
+    },
+    {
+      "id": "rel_requires_evidence",
+      "label": "REQUIRES_EVIDENCE",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for obligation-evidence.",
+      "metadata": {
+        "domain": "obligation-evidence"
+      }
+    },
+    {
+      "id": "rel_has_deadline",
+      "label": "HAS_DEADLINE",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for obligation-deadline.",
+      "metadata": {
+        "domain": "obligation-deadline"
+      }
+    },
+    {
+      "id": "rel_evaluates",
+      "label": "EVALUATES",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for exam-control.",
+      "metadata": {
+        "domain": "exam-control"
+      }
+    },
+    {
+      "id": "rel_mitigates",
+      "label": "MITIGATES",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for control-failure.",
+      "metadata": {
+        "domain": "control-failure"
+      }
+    },
+    {
+      "id": "rel_raises",
+      "label": "RAISES",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for failure-risk.",
+      "metadata": {
+        "domain": "failure-risk"
+      }
+    },
+    {
+      "id": "rel_belongs_to",
+      "label": "BELONGS_TO",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for complaint-cluster.",
+      "metadata": {
+        "domain": "complaint-cluster"
+      }
+    },
+    {
+      "id": "rel_suggests",
+      "label": "SUGGESTS",
+      "node_type": "relationship_type",
+      "description": "Representative relationship for cluster-failure.",
+      "metadata": {
+        "domain": "cluster-failure"
+      }
+    },
+    {
+      "id": "phase_1",
+      "label": "Phase 1: Canonical complaint-risk spine",
+      "node_type": "phase",
+      "description": "CFPB complaints, priority regulations, CFR ingestion, complaint precedent graph, read-only graph queries for Risk and Root-Cause agents.",
+      "metadata": {}
+    },
+    {
+      "id": "phase_2",
+      "label": "Phase 2: Supervisory and control intelligence",
+      "node_type": "phase",
+      "description": "Supervision manuals, CMS procedures, OCC/FDIC/FFIEC guidance, failure modes, controls, and risk indicators.",
+      "metadata": {}
+    },
+    {
+      "id": "phase_3",
+      "label": "Phase 3: Agreement and product-document intelligence",
+      "node_type": "phase",
+      "description": "Agreement clauses, fees, disclosures, dispute terms, and product-document mappings.",
+      "metadata": {}
+    },
+    {
+      "id": "phase_4",
+      "label": "Phase 4: Internal policy and operations intelligence",
+      "node_type": "phase",
+      "description": "SOPs, routing rules, SLAs, escalation policies, and team/playbook mappings.",
+      "metadata": {}
+    }
+  ],
+  "edges": [
+    {
+      "source": "cfpb_complaints",
+      "target": "raw_object_store",
+      "relation": "lands_in",
+      "description": "Raw acquisitions are preserved in immutable storage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaints",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Raw sources are normalized into consistent documents and sections.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaints",
+      "target": "cfpb_consumer_complaint_database",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_consumer_complaint_database",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_consumer_complaint_database",
+      "target": "analytical_store",
+      "relation": "aggregates_to",
+      "description": "Complaint and trend features are materialized into analytical tables.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_consumer_complaint_database",
+      "target": "complaint_precedent_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_consumer_complaint_database",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaints",
+      "target": "cfpb_complaint_field_definitions",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_field_definitions",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_field_definitions",
+      "target": "analytical_store",
+      "relation": "aggregates_to",
+      "description": "Complaint and trend features are materialized into analytical tables.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_field_definitions",
+      "target": "complaint_precedent_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaints",
+      "target": "cfpb_complaint_product_coverage",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_product_coverage",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_product_coverage",
+      "target": "analytical_store",
+      "relation": "aggregates_to",
+      "description": "Complaint and trend features are materialized into analytical tables.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_product_coverage",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_complaint_product_coverage",
+      "target": "complaint_precedent_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_regulations",
+      "target": "raw_object_store",
+      "relation": "lands_in",
+      "description": "Raw acquisitions are preserved in immutable storage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_regulations",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Raw sources are normalized into consistent documents and sections.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_regulations",
+      "target": "cfpb_regulations_portal",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_regulations_portal",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_regulations_portal",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_regulations_portal",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_regulatory_feeds",
+      "target": "raw_object_store",
+      "relation": "lands_in",
+      "description": "Raw acquisitions are preserved in immutable storage.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_regulatory_feeds",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Raw sources are normalized into consistent documents and sections.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_regulatory_feeds",
+      "target": "govinfo_cfr_bulk_xml",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "govinfo_cfr_bulk_xml",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "govinfo_cfr_bulk_xml",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "govinfo_cfr_bulk_xml",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_regulatory_feeds",
+      "target": "federal_register_updates",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_register_updates",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_register_updates",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "federal_register_updates",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "raw_object_store",
+      "relation": "lands_in",
+      "description": "Raw acquisitions are preserved in immutable storage.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Raw sources are normalized into consistent documents and sections.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "cfpb_supervision_manual",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_supervision_manual",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_supervision_manual",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_supervision_manual",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "cfpb_cmr_exam_procedures",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_cmr_exam_procedures",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_cmr_exam_procedures",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_cmr_exam_procedures",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "occ_comptrollers_handbook",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "occ_comptrollers_handbook",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "occ_comptrollers_handbook",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "occ_comptrollers_handbook",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "fdic_compliance_manual",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "fdic_compliance_manual",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "fdic_compliance_manual",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "fdic_compliance_manual",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "ffiec_bsa_aml_manual",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "ffiec_bsa_aml_manual",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "ffiec_bsa_aml_manual",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "ffiec_bsa_aml_manual",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "supervision_and_exams",
+      "target": "fincen_guidance",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "fincen_guidance",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "fincen_guidance",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "fincen_guidance",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "agreements_and_disclosures",
+      "target": "raw_object_store",
+      "relation": "lands_in",
+      "description": "Raw acquisitions are preserved in immutable storage.",
+      "metadata": {}
+    },
+    {
+      "source": "agreements_and_disclosures",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Raw sources are normalized into consistent documents and sections.",
+      "metadata": {}
+    },
+    {
+      "source": "agreements_and_disclosures",
+      "target": "cfpb_credit_card_agreements",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_credit_card_agreements",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_credit_card_agreements",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_credit_card_agreements",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "agreements_and_disclosures",
+      "target": "cfpb_prepaid_agreements",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_prepaid_agreements",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_prepaid_agreements",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "cfpb_prepaid_agreements",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "internal_sources",
+      "target": "raw_object_store",
+      "relation": "lands_in",
+      "description": "Raw acquisitions are preserved in immutable storage.",
+      "metadata": {}
+    },
+    {
+      "source": "internal_sources",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Raw sources are normalized into consistent documents and sections.",
+      "metadata": {}
+    },
+    {
+      "source": "internal_sources",
+      "target": "internal_policy_and_operations",
+      "relation": "contains",
+      "description": "Source group contains this source family.",
+      "metadata": {}
+    },
+    {
+      "source": "internal_policy_and_operations",
+      "target": "normalized_document_store",
+      "relation": "normalizes_to",
+      "description": "Normalized records preserve metadata, sections, and lineage.",
+      "metadata": {}
+    },
+    {
+      "source": "internal_policy_and_operations",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "internal_policy_and_operations",
+      "target": "lightrag_evidence_layer",
+      "relation": "feeds",
+      "description": "Source family contributes facts or retrieval evidence to this layer.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "entity_product",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "entity_regulation",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "entity_reg_section",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "entity_obligation",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "entity_deadline",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "entity_evidence_requirement",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "supervisory_control_graph",
+      "target": "entity_control",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "supervisory_control_graph",
+      "target": "entity_failure_mode",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "supervisory_control_graph",
+      "target": "entity_risk_indicator",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "supervisory_control_graph",
+      "target": "entity_remediation_action",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "complaint_precedent_graph",
+      "target": "entity_complaint",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "complaint_precedent_graph",
+      "target": "entity_narrative_cluster",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "complaint_precedent_graph",
+      "target": "entity_response_type",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "supervisory_control_graph",
+      "target": "entity_internal_policy",
+      "relation": "contains_entity",
+      "description": "Layer contains this core entity type.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_governed_by",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_contains",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_imposes",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_requires_evidence",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_has_deadline",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_evaluates",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_mitigates",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_raises",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_belongs_to",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_graph_store",
+      "target": "rel_suggests",
+      "relation": "implements",
+      "description": "Canonical graph store persists typed relationships.",
+      "metadata": {}
+    },
+    {
+      "source": "normalized_document_store",
+      "target": "canonical_regulatory_graph",
+      "relation": "feeds",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "normalized_document_store",
+      "target": "supervisory_control_graph",
+      "relation": "feeds",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "normalized_document_store",
+      "target": "complaint_precedent_graph",
+      "relation": "feeds",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "normalized_document_store",
+      "target": "lightrag_evidence_layer",
+      "relation": "indexes_into",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "canonical_regulatory_graph",
+      "target": "canonical_graph_store",
+      "relation": "persists_in",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "supervisory_control_graph",
+      "target": "canonical_graph_store",
+      "relation": "persists_in",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "complaint_precedent_graph",
+      "target": "canonical_graph_store",
+      "relation": "persists_in",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "complaint_precedent_graph",
+      "target": "vector_retrieval_store",
+      "relation": "retrieves_from",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "lightrag_evidence_layer",
+      "target": "vector_retrieval_store",
+      "relation": "retrieves_from",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "complaint_precedent_graph",
+      "target": "analytical_store",
+      "relation": "measures_in",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_1",
+      "target": "cfpb_complaints",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_1",
+      "target": "cfpb_regulations",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_1",
+      "target": "federal_regulatory_feeds",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_1",
+      "target": "canonical_regulatory_graph",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_1",
+      "target": "complaint_precedent_graph",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_2",
+      "target": "supervision_and_exams",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_2",
+      "target": "supervisory_control_graph",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_3",
+      "target": "agreements_and_disclosures",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_3",
+      "target": "lightrag_evidence_layer",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_4",
+      "target": "internal_sources",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    },
+    {
+      "source": "phase_4",
+      "target": "supervisory_control_graph",
+      "relation": "delivers",
+      "description": "",
+      "metadata": {}
+    }
+  ]
+}
